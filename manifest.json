@@ -1,7 +1,7 @@
 {
   "name": "Meridian",
   "short_name": "Meridian",
-  "description": "Friends across time — see what time and sky it is for everyone in your circle.",
+  "description": "Meridian",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

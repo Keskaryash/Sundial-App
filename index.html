@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Meridian — Friends Across Time</title>
+<title>Meridian</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0B0E1A">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -75,7 +75,7 @@
   .app {
     max-width: 480px;
     margin: 0 auto;
-    padding: 24px 20px calc(100px + env(safe-area-inset-bottom));
+    padding: calc(20px + env(safe-area-inset-top)) 20px calc(100px + env(safe-area-inset-bottom));
     min-height: 100vh;
   }
 
@@ -217,16 +217,15 @@
     position: relative;
     margin-bottom: 14px;
     border-radius: var(--card-radius);
-    overflow: visible;
+    overflow: hidden;
     transition: transform 0.2s ease;
   }
   .friend-swipe-wrap.drag-active {
-    overflow: hidden;
     z-index: 50;
     transition: none;
+    box-shadow: 0 12px 28px rgba(0,0,0,0.35);
   }
   .friend-swipe-wrap.drag-active .friend-strip {
-    box-shadow: 0 12px 28px rgba(0,0,0,0.35);
     transform: scale(1.02);
   }
   .friend-swipe-wrap.drag-placeholder {
@@ -511,7 +510,7 @@
     padding: 12px; border-radius: 14px; cursor: pointer; margin-top: 10px;
   }
 
-  #globeScreen .app { padding-top: 24px; padding-bottom: 100px; max-width: none; }
+  #globeScreen .app { padding-top: calc(20px + env(safe-area-inset-top)); padding-bottom: 100px; max-width: none; }
   .globe-header { max-width: 480px; margin: 0 auto 12px; padding: 0 20px; display: flex; justify-content: space-between; align-items: baseline; }
   .globe-header h1 { font-weight: 800; font-size: 26px; }
   .globe-header .utc-time { font-size: 13px; color: var(--text-dim); font-weight: 500; }
@@ -593,6 +592,9 @@
 
 <div class="screen" id="globeScreen">
   <div class="app">
+    <div class="pull-refresh-indicator" id="atlasPullRefreshIndicator">
+      <span class="pull-refresh-icon" id="atlasPullRefreshIcon">&#x21bb;</span>
+    </div>
     <div class="globe-header">
       <h1>Atlas</h1>
       <span class="utc-time" id="globeUtcTime">-- UTC</span>
@@ -757,15 +759,64 @@
 </div>
 
 <script>
+  var TAB_ORDER = ['globeScreen', 'friendsScreen', 'meScreen']; // left-to-right order matching the nav bar
+
+  function switchToScreen(screenId) {
+    document.querySelectorAll('.nav-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.querySelectorAll('.screen').forEach(function(s) { s.classList.remove('active'); });
+    document.querySelector('[data-screen="' + screenId + '"]').classList.add('active');
+    document.getElementById(screenId).classList.add('active');
+    if (screenId === 'globeScreen') initGlobeIfNeeded();
+  }
+
   document.querySelectorAll('.nav-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
-      document.querySelectorAll('.nav-btn').forEach(function(b) { b.classList.remove('active'); });
-      document.querySelectorAll('.screen').forEach(function(s) { s.classList.remove('active'); });
-      btn.classList.add('active');
-      document.getElementById(btn.dataset.screen).classList.add('active');
-      if (btn.dataset.screen === 'globeScreen') initGlobeIfNeeded();
+      switchToScreen(btn.dataset.screen);
     });
   });
+
+  // ===== Swipe left/right between tabs, but only when starting from blank
+  // space — not on friend cards, the time slider, buttons, or other
+  // interactive elements, so this never conflicts with their own gestures.
+  (function setupTabSwipe() {
+    var startX = 0, startY = 0, tracking = false;
+    var SWIPE_THRESHOLD = 60;
+
+    function isBlankSpaceTarget(target) {
+      // Walk up from the touch target — if we hit any interactive element
+      // before reaching the screen/app container, this isn't blank space.
+      var blockedSelectors = '.friend-swipe-wrap, .time-slider, button, input, a, .me-avatar-wrap, #globeContainer, .sheet-overlay';
+      return !target.closest(blockedSelectors);
+    }
+
+    document.querySelectorAll('.screen').forEach(function(screen) {
+      screen.addEventListener('touchstart', function(e) {
+        if (!isBlankSpaceTarget(e.target)) { tracking = false; return; }
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        tracking = true;
+      }, { passive: true });
+
+      screen.addEventListener('touchend', function(e) {
+        if (!tracking) return;
+        tracking = false;
+        var dx = e.changedTouches[0].clientX - startX;
+        var dy = e.changedTouches[0].clientY - startY;
+
+        if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy) * 1.5) return; // not a clear horizontal swipe
+
+        var activeScreen = document.querySelector('.screen.active').id;
+        var currentIndex = TAB_ORDER.indexOf(activeScreen);
+        if (currentIndex === -1) return;
+
+        if (dx < 0 && currentIndex < TAB_ORDER.length - 1) {
+          switchToScreen(TAB_ORDER[currentIndex + 1]); // swipe left -> next tab
+        } else if (dx > 0 && currentIndex > 0) {
+          switchToScreen(TAB_ORDER[currentIndex - 1]); // swipe right -> previous tab
+        }
+      });
+    });
+  })();
 
   // ===== API client — talks to the real deployed backend =====
   var API_BASE = 'https://sundial-backend.onrender.com';
@@ -1759,7 +1810,10 @@
     if (friendEntries.length === 0) {
       realFriends = [];
       renderFriends();
-      if (globeInitialized) renderGlobeFriendList();
+      if (globeInitialized) {
+        renderGlobeFriendList();
+        if (window.__rebuildGlobePins) window.__rebuildGlobePins();
+      }
       return;
     }
     var ids = friendEntries.map(function(f) { return f.id; });
@@ -1772,7 +1826,10 @@
         .filter(function(p) { return p !== null; })
         .map(function(p) { return adaptProfileForDisplay(p, nicknameById[p.id]); });
       renderFriends();
-      if (globeInitialized) renderGlobeFriendList();
+      if (globeInitialized) {
+        renderGlobeFriendList();
+        if (window.__rebuildGlobePins) window.__rebuildGlobePins();
+      }
     });
   }
 
@@ -1781,10 +1838,10 @@
 
   // Pull-to-refresh on the Circle (Friends) tab — pull down from the top to
   // re-fetch your own profile + all friends' latest data.
-  (function setupPullToRefresh() {
-    var screen = document.getElementById('friendsScreen');
-    var indicator = document.getElementById('pullRefreshIndicator');
-    var icon = document.getElementById('pullRefreshIcon');
+  function setupPullToRefresh(screenId, indicatorId, iconId, onRefresh) {
+    var screen = document.getElementById(screenId);
+    var indicator = document.getElementById(indicatorId);
+    var icon = document.getElementById(iconId);
     var threshold = 70; // px of pull needed to trigger a refresh
     var startY = 0;
     var pulling = false;
@@ -1794,11 +1851,7 @@
       if (refreshing) return;
       refreshing = true;
       icon.classList.add('spinning');
-      Promise.all([
-        myProfile ? apiGetProfile(myProfile.id).then(function(res) { if (res.ok) myProfile = res.body; }) : Promise.resolve()
-      ]).then(function() {
-        loadMyFriends();
-      }).finally(function() {
+      Promise.resolve(onRefresh()).finally(function() {
         setTimeout(function() {
           indicator.style.height = '0px';
           icon.classList.remove('spinning');
@@ -1836,7 +1889,18 @@
         indicator.style.height = '0px';
       }
     });
-  })();
+  }
+
+  setupPullToRefresh('friendsScreen', 'pullRefreshIndicator', 'pullRefreshIcon', function() {
+    var profileRefresh = myProfile
+      ? apiGetProfile(myProfile.id).then(function(res) { if (res.ok) myProfile = res.body; })
+      : Promise.resolve();
+    return profileRefresh.then(function() { loadMyFriends(); });
+  });
+
+  setupPullToRefresh('globeScreen', 'atlasPullRefreshIndicator', 'atlasPullRefreshIcon', function() {
+    return Promise.resolve(loadMyFriends()); // loadMyFriends already rebuilds globe pins when the globe is initialized
+  });
 
   // Auto-refresh friends' data periodically so statuses/locations don't go stale
   // while the app is left open in the background.
@@ -2048,7 +2112,7 @@
         return tex;
       }
 
-      function addPin(lat, lon, color, initial, photoUrl) {
+      window.__addGlobePin = function(lat, lon, color, initial, photoUrl) {
         var pos = latLonToVector3(lat, lon, 1.02);
         var pinGeo = new THREE.SphereGeometry(0.022, 12, 12);
         var pinMat = new THREE.MeshBasicMaterial({ color: color });
@@ -2092,13 +2156,29 @@
         } else {
           placeSprite(buildAvatarTexture(initial, color));
         }
-      }
+      };
 
-      realFriends.forEach(function(f) {
-        if (typeof f.lat !== 'number' || typeof f.lon !== 'number') return; // friend hasn't set a location yet
-        var color = f.status === 'available' ? 0x6FCF97 : 0xE8604C;
-        addPin(f.lat, f.lon, color, f.initial, f.photo);
-      });
+      window.__rebuildGlobePins = function() {
+        // Clear every existing pin/glow/sprite/line, then rebuild from the
+        // current realFriends data. Disposing geometries/materials avoids
+        // leaking GPU memory each time this runs.
+        while (pinGroup.children.length > 0) {
+          var child = pinGroup.children[0];
+          pinGroup.remove(child);
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (child.material.map) child.material.map.dispose();
+            child.material.dispose();
+          }
+        }
+        realFriends.forEach(function(f) {
+          if (typeof f.lat !== 'number' || typeof f.lon !== 'number') return;
+          var color = f.status === 'available' ? 0x6FCF97 : 0xE8604C;
+          window.__addGlobePin(f.lat, f.lon, color, f.initial, f.photo);
+        });
+      };
+
+      window.__rebuildGlobePins();
 
       function updateSunPosition() {
         var sp = solarPosition(new Date());
