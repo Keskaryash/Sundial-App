@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meridian — Admin</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #14161f;
+    color: #e8e6e0;
+    padding: 24px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .subtitle { color: #888; font-size: 13px; margin-bottom: 24px; }
+
+  .key-bar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+  .key-bar input {
+    flex: 1;
+    background: #1f2230;
+    border: 1px solid #333;
+    color: #e8e6e0;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  .key-bar button {
+    background: #f2a65a;
+    color: #14161f;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .key-bar button:disabled { opacity: 0.5; cursor: default; }
+
+  #status { font-size: 13px; color: #888; margin-bottom: 16px; min-height: 18px; }
+  #status.error { color: #e8604c; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid #333;
+    color: #888;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.03em;
+  }
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #22242f;
+    vertical-align: middle;
+  }
+  tr:hover td { background: #1a1c28; }
+  .mono { font-family: 'SF Mono', Monaco, monospace; font-size: 12px; color: #aaa; }
+  .status-pill {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .status-pill.available { background: rgba(111,207,151,0.15); color: #6fcf97; }
+  .status-pill.busy { background: rgba(232,96,76,0.15); color: #e8604c; }
+  .del-btn {
+    background: none;
+    border: 1px solid rgba(232,96,76,0.4);
+    color: #e8604c;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .del-btn:disabled { opacity: 0.4; cursor: default; }
+  .empty-state { text-align: center; padding: 60px 20px; color: #666; }
+</style>
+</head>
+<body>
+
+<h1>Meridian — Admin</h1>
+<p class="subtitle">View and manage every profile in the database. Not linked from the main app.</p>
+
+<div class="key-bar">
+  <input type="password" id="adminKeyInput" placeholder="Admin key">
+  <button id="loadBtn">Load profiles</button>
+</div>
+<p id="status"></p>
+
+<table id="profilesTable" style="display:none;">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>ID</th>
+      <th>City</th>
+      <th>Timezone</th>
+      <th>Status</th>
+      <th>Updated</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody id="profilesBody"></tbody>
+</table>
+
+<div class="empty-state" id="emptyState" style="display:none;">No profiles found.</div>
+
+<script>
+  var API_BASE = 'https://sundial-backend.onrender.com';
+
+  function getKey() {
+    return document.getElementById('adminKeyInput').value.trim();
+  }
+
+  function setStatus(text, isError) {
+    var el = document.getElementById('status');
+    el.textContent = text;
+    el.className = isError ? 'error' : '';
+  }
+
+  function loadProfiles() {
+    var key = getKey();
+    if (!key) { setStatus('Enter the admin key first.', true); return; }
+
+    setStatus('Loading…', false);
+    document.getElementById('loadBtn').disabled = true;
+
+    fetch(API_BASE + '/api/admin/profiles', {
+      headers: { 'X-Admin-Key': key }
+    }).then(function(r) {
+      return r.json().then(function(body) { return { ok: r.ok, body: body }; });
+    }).then(function(res) {
+      if (!res.ok) {
+        setStatus(res.body.error || 'Failed to load profiles.', true);
+        document.getElementById('profilesTable').style.display = 'none';
+        document.getElementById('emptyState').style.display = 'none';
+        return;
+      }
+      setStatus(res.body.count + ' profile(s) found.', false);
+      renderTable(res.body.profiles, key);
+    }).catch(function() {
+      setStatus('Network error.', true);
+    }).finally(function() {
+      document.getElementById('loadBtn').disabled = false;
+    });
+  }
+
+  function renderTable(profiles, key) {
+    var table = document.getElementById('profilesTable');
+    var body = document.getElementById('profilesBody');
+    var empty = document.getElementById('emptyState');
+    body.innerHTML = '';
+
+    if (profiles.length === 0) {
+      table.style.display = 'none';
+      empty.style.display = 'block';
+      return;
+    }
+    table.style.display = 'table';
+    empty.style.display = 'none';
+
+    profiles.forEach(function(p) {
+      var tr = document.createElement('tr');
+      var updated = p.updated_at ? new Date(p.updated_at).toLocaleString() : '—';
+      tr.innerHTML =
+        '<td>' + escapeHtml(p.name || '—') + '</td>' +
+        '<td class="mono">' + escapeHtml(p.id) + '</td>' +
+        '<td>' + escapeHtml(p.city_name || '—') + '</td>' +
+        '<td class="mono">' + escapeHtml(p.timezone || '—') + '</td>' +
+        '<td><span class="status-pill ' + p.status + '">' + p.status + '</span></td>' +
+        '<td>' + updated + '</td>' +
+        '<td><button class="del-btn" data-id="' + escapeHtml(p.id) + '">Delete</button></td>';
+      body.appendChild(tr);
+    });
+
+    body.querySelectorAll('.del-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var id = btn.dataset.id;
+        if (!confirm('Permanently delete profile ' + id + '? This cannot be undone.')) return;
+        btn.disabled = true;
+        btn.textContent = 'Deleting…';
+        fetch(API_BASE + '/api/admin/profile/' + encodeURIComponent(id), {
+          method: 'DELETE',
+          headers: { 'X-Admin-Key': key }
+        }).then(function(r) { return r.json(); }).then(function() {
+          loadProfiles();
+        }).catch(function() {
+          btn.disabled = false;
+          btn.textContent = 'Delete';
+          setStatus('Failed to delete profile ' + id + '.', true);
+        });
+      });
+    });
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  document.getElementById('loadBtn').addEventListener('click', loadProfiles);
+  document.getElementById('adminKeyInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') loadProfiles();
+  });
+</script>
+
+</body>
+</html>
