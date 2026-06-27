@@ -86,6 +86,16 @@
     cursor: pointer;
   }
   .del-btn:disabled { opacity: 0.4; cursor: default; }
+  .regen-btn {
+    background: none;
+    border: 1px solid rgba(242,166,90,0.4);
+    color: #f2a65a;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .regen-btn:disabled { opacity: 0.4; cursor: default; }
   .empty-state { text-align: center; padding: 60px 20px; color: #666; }
 </style>
 </head>
@@ -108,6 +118,7 @@
       <th>City</th>
       <th>Timezone</th>
       <th>Status</th>
+      <th>Recovery</th>
       <th>Updated</th>
       <th></th>
     </tr>
@@ -174,14 +185,21 @@
     profiles.forEach(function(p) {
       var tr = document.createElement('tr');
       var updated = p.updated_at ? new Date(p.updated_at).toLocaleString() : '—';
+      var recoveryLabel = p.has_recovery_code
+        ? '<span style="color:#6fcf97;">&#10003; set</span>'
+        : '<span style="color:#666;">none</span>';
       tr.innerHTML =
         '<td>' + escapeHtml(p.name || '—') + '</td>' +
         '<td class="mono">' + escapeHtml(p.id) + '</td>' +
         '<td>' + escapeHtml(p.city_name || '—') + '</td>' +
         '<td class="mono">' + escapeHtml(p.timezone || '—') + '</td>' +
         '<td><span class="status-pill ' + p.status + '">' + p.status + '</span></td>' +
+        '<td>' + recoveryLabel + '</td>' +
         '<td>' + updated + '</td>' +
-        '<td><button class="del-btn" data-id="' + escapeHtml(p.id) + '">Delete</button></td>';
+        '<td>' +
+          '<button class="del-btn" data-id="' + escapeHtml(p.id) + '">Delete</button> ' +
+          '<button class="regen-btn" data-id="' + escapeHtml(p.id) + '">New code</button>' +
+        '</td>';
       body.appendChild(tr);
     });
 
@@ -201,6 +219,35 @@
           btn.textContent = 'Delete';
           setStatus('Failed to delete profile ' + id + '.', true);
         });
+      });
+    });
+
+    body.querySelectorAll('.regen-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var id = btn.dataset.id;
+        if (!confirm('Generate a new recovery code for ' + id + '? Their old code (if any) will stop working immediately.')) return;
+        btn.disabled = true;
+        btn.textContent = 'Generating…';
+        fetch(API_BASE + '/api/admin/profile/' + encodeURIComponent(id) + '/regenerate-recovery-code', {
+          method: 'POST',
+          headers: { 'X-Admin-Key': key }
+        }).then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); })
+          .then(function(res) {
+            if (!res.ok) {
+              setStatus(res.body.error || 'Failed to generate a new code.', true);
+              btn.disabled = false;
+              btn.textContent = 'New code';
+              return;
+            }
+            // Shown once, same principle as the user-facing flow — copy this
+            // down before closing the alert, since it can't be retrieved again.
+            alert('New recovery code for ' + id + ':\n\n' + res.body.recovery_code + '\n\nSave this now — it will not be shown again. Relay it to them through a trusted channel.');
+            loadProfiles();
+          }).catch(function() {
+            setStatus('Network error generating new code.', true);
+            btn.disabled = false;
+            btn.textContent = 'New code';
+          });
       });
     });
   }

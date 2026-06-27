@@ -69,8 +69,21 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  .screen { display: none; min-height: 100vh; }
-  .screen.active { display: block; height: 100vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .screens-track {
+    display: flex;
+    width: 300vw;
+    height: 100vh;
+    will-change: transform;
+  }
+  .screens-track.animating { transition: transform 0.32s cubic-bezier(0.22, 0.61, 0.36, 1); }
+
+  .screen {
+    width: 100vw;
+    height: 100vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-shrink: 0;
+  }
 
   .app {
     max-width: 480px;
@@ -326,6 +339,20 @@
   }
   .nav-btn.active { color: var(--accent-day); }
   .nav-icon-svg { width: 22px; height: 22px; display: block; }
+  .nav-icon-glyph {
+    width: 22px;
+    height: 25px;
+    display: block;
+    background-color: currentColor;
+    -webkit-mask-image: url(data:image/png;base64,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);
+    -webkit-mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-image: url(data:image/png;base64,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);
+    mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: center;
+  }
 
   .me-header { text-align: center; padding: 12px 0 28px; }
   .me-avatar-wrap { position: relative; display: inline-block; margin-bottom: 16px; }
@@ -427,6 +454,32 @@
   }
   .theme-toggle-btn.active { background: var(--accent-day); color: var(--bg-deep); }
 
+  .menu-badge {
+    position: absolute;
+    top: -2px; right: -2px;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    background: var(--accent-now);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    border: 2px solid var(--bg-deep);
+  }
+  .requests-section { margin-bottom: 16px; background: var(--bg-card-soft); border: 1px solid var(--bg-card-border); border-radius: 14px; padding: 16px; }
+  .requests-section h3 { font-size: 14px; font-weight: 600; color: var(--text-dim); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.04em; display: flex; align-items: center; gap: 6px; }
+  .requests-count-badge { background: var(--accent-now); color: #fff; font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 8px; text-transform: none; letter-spacing: 0; }
+  .request-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--bg-card-border); }
+  .request-row:last-child { border-bottom: none; }
+  .request-row .req-name { flex: 1; font-size: 14px; font-weight: 600; color: var(--text-warm); }
+  .request-row button { border: none; border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .request-row .approve-btn { background: #6FCF97; color: #0B2818; margin-right: 6px; }
+  .request-row .deny-btn { background: var(--bg-card-border); color: var(--text-dim); }
+
   .qr-section { text-align: center; padding: 20px 16px; background: var(--bg-card-soft); border: 1px solid var(--bg-card-border); border-radius: 14px; }
   .qr-section h3 { font-size: 14px; font-weight: 600; color: var(--text-dim); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.04em; }
   #qr-canvas-wrap {
@@ -510,7 +563,22 @@
   .globe-header { max-width: 480px; margin: 0 auto 12px; padding: 0 20px; display: flex; justify-content: space-between; align-items: baseline; }
   .globe-header h1 { font-weight: 800; font-size: 26px; }
   .globe-header .utc-time { font-size: 13px; color: var(--text-dim); font-weight: 500; }
+  .globe-wrap { position: relative; }
   #globeContainer { width: 100%; height: 42vh; max-height: 380px; touch-action: none; cursor: grab; }
+  .globe-reset-btn {
+    position: absolute;
+    top: 10px; right: 10px;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: var(--bg-card-soft);
+    border: 1px solid var(--bg-card-border);
+    color: var(--text-warm);
+    font-size: 17px;
+    backdrop-filter: blur(8px);
+    cursor: pointer;
+    z-index: 10;
+  }
+  .globe-reset-btn:active { transform: scale(0.92); }
   #globeContainer:active { cursor: grabbing; }
   .globe-legend {
     max-width: 480px; margin: 8px auto 0; padding: 0 20px;
@@ -525,6 +593,7 @@
   }
   .globe-friend-row .friend-avatar { width: 34px; height: 34px; font-size: 13px; }
   .globe-friend-row .fname { font-size: 14px; font-weight: 600; flex: 1; }
+  .globe-friend-row .fname-time { font-size: 13px; font-weight: 600; color: var(--accent-day); margin-right: 8px; }
   .globe-friend-row .fcity { font-size: 12px; color: var(--text-dim); font-weight: 500; }
 
   .sheet-overlay {
@@ -553,6 +622,24 @@
 </style>
 </head>
 <body>
+
+<div class="screens-track" id="screensTrack">
+<div class="screen" id="globeScreen">
+  <div class="app">
+    <div class="pull-refresh-indicator" id="atlasPullRefreshIndicator">
+      <span class="pull-refresh-icon" id="atlasPullRefreshIcon">&#x21bb;</span>
+    </div>
+    <div class="globe-header">
+      <h1>Atlas</h1>
+      <span class="utc-time" id="globeUtcTime">-- UTC</span>
+    </div>
+    <div class="globe-wrap">
+      <div id="globeContainer"></div>
+      <button class="globe-reset-btn" id="globeResetBtn" title="Reset view">&#x21bb;</button>
+    </div>
+    <div class="globe-friend-list" id="globeFriendList"></div>
+  </div>
+</div>
 
 <div class="screen active" id="friendsScreen">
   <div class="app">
@@ -586,25 +673,14 @@
   </div>
 </div>
 
-<div class="screen" id="globeScreen">
-  <div class="app">
-    <div class="pull-refresh-indicator" id="atlasPullRefreshIndicator">
-      <span class="pull-refresh-icon" id="atlasPullRefreshIcon">&#x21bb;</span>
-    </div>
-    <div class="globe-header">
-      <h1>Atlas</h1>
-      <span class="utc-time" id="globeUtcTime">-- UTC</span>
-    </div>
-    <div id="globeContainer"></div>
-    <div class="globe-friend-list" id="globeFriendList"></div>
-  </div>
-</div>
-
 <div class="screen" id="meScreen">
   <div class="app">
     <header class="top">
       <h1>Me</h1>
-      <button class="add-btn" id="meMenuBtn" title="Menu">&#8942;</button>
+      <button class="add-btn" id="meMenuBtn" title="Menu" style="position:relative;">
+        &#8942;
+        <span class="menu-badge" id="meMenuBadge" style="display:none;"></span>
+      </button>
     </header>
 
     <div class="me-menu-panel" id="meMenuPanel">
@@ -621,6 +697,10 @@
           <button class="theme-toggle-btn" id="timeFormat12Btn">12h</button>
           <button class="theme-toggle-btn" id="timeFormat24Btn">24h</button>
         </div>
+      </div>
+      <div class="requests-section" id="requestsSection" style="display:none;">
+        <h3>Requests <span id="requestsCount" class="requests-count-badge"></span></h3>
+        <div id="requestsList"></div>
       </div>
       <div class="qr-section">
         <h3>Your code</h3>
@@ -652,6 +732,15 @@
       <div class="me-location" id="meLocation">Set your location below</div>
     </div>
 
+    <div class="sheet-overlay" id="photoActionOverlay">
+      <div class="sheet">
+        <h2>Profile photo</h2>
+        <button class="btn-primary" id="changePhotoBtn" style="margin-top:0;">Change photo</button>
+        <button class="danger-btn" id="removePhotoBtn" style="display:none;">Remove photo</button>
+        <button class="btn-secondary" id="cancelPhotoActionBtn">Cancel</button>
+      </div>
+    </div>
+
     <div class="status-toggle-wrap" id="statusToggleWrap">
       <div class="status-toggle-pill"></div>
       <button class="active available" id="statusAvailableBtn">
@@ -680,16 +769,16 @@
 
     <button class="btn-primary" id="meSaveBtn">Save profile</button>
     <p id="meSaveStatus" style="text-align:center;font-size:13px;color:var(--text-dim);margin-top:10px;min-height:18px;"></p>
+    <p style="text-align:center;margin-top:14px;">
+      <a href="#" id="openRestoreLink" style="font-size:12px;color:var(--text-dim);text-decoration:underline;">Already have a profile? Restore it on this device</a>
+    </p>
   </div>
+</div>
 </div>
 
 <div class="bottom-nav">
   <button class="nav-btn" data-screen="globeScreen">
-    <svg class="nav-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
-      <circle cx="12" cy="12" r="8.5"/>
-      <ellipse cx="12" cy="12" rx="3.6" ry="8.5"/>
-      <path d="M3.7 9 H20.3 M3.7 15 H20.3"/>
-    </svg>
+    <span class="nav-icon-glyph"></span>
     Atlas
   </button>
   <button class="nav-btn active" data-screen="friendsScreen">
@@ -759,16 +848,73 @@
   </div>
 </div>
 
-<script>
-  var TAB_ORDER = ['globeScreen', 'friendsScreen', 'meScreen']; // left-to-right order matching the nav bar
+<div class="sheet-overlay" id="recoveryCodeOverlay">
+  <div class="sheet">
+    <h2>Save your recovery code</h2>
+    <p style="font-size:13px;color:var(--text-dim);line-height:1.5;margin-bottom:16px;">
+      If you ever lose access to this device, this code is the <strong style="color:var(--text-warm);">only way</strong> to get your profile back.
+      There's no other way to recover it. Save it somewhere safe, like a password manager or notes app.
+    </p>
+    <div style="background:var(--bg-card-soft);border:1px solid var(--bg-card-border);border-radius:12px;padding:18px;text-align:center;margin-bottom:16px;">
+      <div id="recoveryCodeDisplay" style="font-family:'SF Mono', Monaco, monospace;font-size:18px;font-weight:700;letter-spacing:0.05em;color:var(--accent-day);"></div>
+    </div>
+    <button class="btn-primary" id="copyRecoveryCodeBtn" style="margin-top:0;">Copy code</button>
+    <button class="btn-secondary" id="closeRecoveryCodeBtn">I've saved it</button>
+  </div>
+</div>
 
-  function switchToScreen(screenId) {
+<div class="sheet-overlay" id="restoreAccessOverlay">
+  <div class="sheet">
+    <h2>Restore access</h2>
+    <p style="font-size:13px;color:var(--text-dim);line-height:1.5;margin-bottom:16px;">
+      Enter your profile ID and recovery code to restore your existing profile on this device.
+    </p>
+    <div class="field">
+      <label>Your ID</label>
+      <input type="text" id="restoreIdInput" placeholder="e.g. d8cfebd136">
+    </div>
+    <div class="field">
+      <label>Recovery code</label>
+      <input type="text" id="restoreCodeInput" placeholder="XXXX-XXXX-XXXX-XXXX" style="text-transform:uppercase;">
+    </div>
+    <button class="btn-primary" id="confirmRestoreBtn" style="margin-top:0;">Restore</button>
+    <button class="btn-secondary" id="cancelRestoreBtn">Cancel</button>
+    <p class="error-text" id="restoreError"></p>
+  </div>
+</div>
+
+<script>
+  var TAB_ORDER = ['globeScreen', 'friendsScreen', 'meScreen']; // matches both the DOM order of .screen elements and the nav bar's visual left-to-right order
+  var currentTabIndex = TAB_ORDER.indexOf('friendsScreen'); // Circle is the default landing tab
+  var track = document.getElementById('screensTrack');
+
+  function setTrackPosition(index, animate) {
+    track.classList.toggle('animating', !!animate);
+    track.style.transform = 'translateX(' + (-index * 100 / TAB_ORDER.length) + '%)';
+  }
+
+  function markActiveScreen(index) {
     document.querySelectorAll('.nav-btn').forEach(function(b) { b.classList.remove('active'); });
     document.querySelectorAll('.screen').forEach(function(s) { s.classList.remove('active'); });
+    var screenId = TAB_ORDER[index];
     document.querySelector('[data-screen="' + screenId + '"]').classList.add('active');
     document.getElementById(screenId).classList.add('active');
     if (screenId === 'globeScreen') initGlobeIfNeeded();
   }
+
+  function switchToScreen(screenId) {
+    var index = TAB_ORDER.indexOf(screenId);
+    if (index === -1) return;
+    currentTabIndex = index;
+    setTrackPosition(index, true);
+    markActiveScreen(index);
+  }
+
+  // Initialize track CSS width/positioning to match the number of tabs, and
+  // set the starting position to match the default active screen.
+  track.style.width = (TAB_ORDER.length * 100) + 'vw';
+  document.querySelectorAll('.screen').forEach(function(s) { s.style.width = '100vw'; });
+  setTrackPosition(currentTabIndex, false);
 
   document.querySelectorAll('.nav-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
@@ -779,13 +925,15 @@
   // ===== Swipe left/right between tabs, but only when starting from blank
   // space — not on friend cards, the time slider, buttons, or other
   // interactive elements, so this never conflicts with their own gestures.
+  // The track follows your finger in real time while dragging, then snaps
+  // to the nearest tab on release — matching native iOS tab-swipe feel.
   (function setupTabSwipe() {
-    var startX = 0, startY = 0, tracking = false;
-    var SWIPE_THRESHOLD = 60;
+    var startX = 0, startY = 0, tracking = false, dragging = false;
+    var dragStartIndex = 0;
+    var DRAG_DECISION_PX = 8;
+    var SWIPE_COMMIT_RATIO = 0.18; // fraction of screen width to commit to changing tabs
 
     function isBlankSpaceTarget(target) {
-      // Walk up from the touch target — if we hit any interactive element
-      // before reaching the screen/app container, this isn't blank space.
       var blockedSelectors = '.friend-swipe-wrap, .time-slider, button, input, a, .me-avatar-wrap, #globeContainer, .sheet-overlay';
       return !target.closest(blockedSelectors);
     }
@@ -796,25 +944,51 @@
         startX = e.touches[0].clientX;
         startY = e.touches[0].clientY;
         tracking = true;
+        dragging = false;
+        dragStartIndex = currentTabIndex;
+      }, { passive: true });
+
+      screen.addEventListener('touchmove', function(e) {
+        if (!tracking) return;
+        var dx = e.touches[0].clientX - startX;
+        var dy = e.touches[0].clientY - startY;
+
+        if (!dragging) {
+          if (Math.abs(dx) < DRAG_DECISION_PX && Math.abs(dy) < DRAG_DECISION_PX) return;
+          if (Math.abs(dy) > Math.abs(dx)) { tracking = false; return; } // vertical scroll, not a tab swipe
+          dragging = true;
+        }
+
+        // Don't allow dragging past the first or last tab
+        var atLeftEdge = dragStartIndex === 0 && dx > 0;
+        var atRightEdge = dragStartIndex === TAB_ORDER.length - 1 && dx < 0;
+        var clampedDx = (atLeftEdge || atRightEdge) ? dx * 0.25 : dx; // slight resistance at the ends
+
+        var basePercent = -dragStartIndex * 100 / TAB_ORDER.length;
+        var dragPercent = (clampedDx / window.innerWidth) * 100 / TAB_ORDER.length;
+        track.classList.remove('animating');
+        track.style.transform = 'translateX(' + (basePercent + dragPercent) + '%)';
       }, { passive: true });
 
       screen.addEventListener('touchend', function(e) {
         if (!tracking) return;
         tracking = false;
+        if (!dragging) return;
+        dragging = false;
+
         var dx = e.changedTouches[0].clientX - startX;
-        var dy = e.changedTouches[0].clientY - startY;
+        var ratio = dx / window.innerWidth;
+        var newIndex = dragStartIndex;
 
-        if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy) * 1.5) return; // not a clear horizontal swipe
-
-        var activeScreen = document.querySelector('.screen.active').id;
-        var currentIndex = TAB_ORDER.indexOf(activeScreen);
-        if (currentIndex === -1) return;
-
-        if (dx < 0 && currentIndex < TAB_ORDER.length - 1) {
-          switchToScreen(TAB_ORDER[currentIndex + 1]); // swipe left -> next tab
-        } else if (dx > 0 && currentIndex > 0) {
-          switchToScreen(TAB_ORDER[currentIndex - 1]); // swipe right -> previous tab
+        if (ratio < -SWIPE_COMMIT_RATIO && dragStartIndex < TAB_ORDER.length - 1) {
+          newIndex = dragStartIndex + 1;
+        } else if (ratio > SWIPE_COMMIT_RATIO && dragStartIndex > 0) {
+          newIndex = dragStartIndex - 1;
         }
+
+        currentTabIndex = newIndex;
+        setTrackPosition(newIndex, true);
+        markActiveScreen(newIndex);
       });
     });
   })();
@@ -830,6 +1004,14 @@
     }).then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); });
   }
 
+  function apiRecoverProfile(profileId, recoveryCode) {
+    return fetch(API_BASE + '/api/profile/' + encodeURIComponent(profileId) + '/recover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recovery_code: recoveryCode })
+    }).then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); });
+  }
+
   function apiUpdateProfile(id, data) {
     return fetch(API_BASE + '/api/profile/' + encodeURIComponent(id), {
       method: 'PATCH',
@@ -838,22 +1020,50 @@
     }).then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); });
   }
 
-  function apiGetProfile(id) {
-    return fetch(API_BASE + '/api/profile/' + encodeURIComponent(id))
+  function apiGetProfile(id, viewerId) {
+    var url = API_BASE + '/api/profile/' + encodeURIComponent(id);
+    if (viewerId) url += '?viewer_id=' + encodeURIComponent(viewerId);
+    return fetch(url)
       .then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); });
   }
 
-  function apiGetProfilesBatch(ids) {
+  function apiGetProfilesBatch(ids, viewerId) {
     return fetch(API_BASE + '/api/profiles/batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: ids })
+      body: JSON.stringify({ ids: ids, viewer_id: viewerId })
     }).then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); });
   }
 
   function apiDeleteProfile(id) {
     return fetch(API_BASE + '/api/profile/' + encodeURIComponent(id), {
       method: 'DELETE'
+    }).then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); });
+  }
+
+  function apiCreateFriendRequest(requesterId, targetId) {
+    return fetch(API_BASE + '/api/friend-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requester_id: requesterId, target_id: targetId })
+    }).then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); });
+  }
+
+  function apiListIncomingRequests(targetId) {
+    return fetch(API_BASE + '/api/friend-requests/incoming/' + encodeURIComponent(targetId))
+      .then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); });
+  }
+
+  function apiListOutgoingRequests(requesterId) {
+    return fetch(API_BASE + '/api/friend-requests/outgoing/' + encodeURIComponent(requesterId))
+      .then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); });
+  }
+
+  function apiRespondToRequest(requestId, responderId, action) {
+    return fetch(API_BASE + '/api/friend-request/' + requestId + '/respond', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ responder_id: responderId, action: action })
     }).then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); });
   }
 
@@ -937,6 +1147,7 @@
 
   var myProfile = null;        // the real profile object fetched/created from the backend
   var realFriends = [];        // real friend profile objects, fetched by ID
+  var pendingRequests = [];    // friends you've added who haven't approved you yet
 
   var offsetMinutes = 0;
 
@@ -1025,13 +1236,29 @@
     var list = document.getElementById('friendList');
     list.innerHTML = '';
 
+    if (pendingRequests.length > 0) {
+      var pendingSection = document.createElement('div');
+      pendingSection.style.marginBottom = '18px';
+      pendingRequests.forEach(function(p) {
+        var row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--bg-card-soft);border:1px solid var(--bg-card-border);border-radius:14px;margin-bottom:8px;';
+        row.innerHTML =
+          '<div style="width:8px;height:8px;border-radius:50%;background:var(--accent-day);flex-shrink:0;"></div>' +
+          '<div style="flex:1;font-size:13px;color:var(--text-dim);font-weight:500;">' + p.displayName + ' — waiting for them to approve</div>';
+        pendingSection.appendChild(row);
+      });
+      list.appendChild(pendingSection);
+    }
+
     if (realFriends.length === 0) {
-      list.innerHTML =
-        '<div style="text-align:center;padding:50px 20px;color:var(--text-dim);">' +
-        '<div style="font-size:36px;margin-bottom:12px;">&#9680;</div>' +
-        '<div style="font-size:16px;font-weight:700;color:var(--text-warm);margin-bottom:6px;">No friends yet</div>' +
-        '<div style="font-size:13px;">Tap the + button above to add your first friend</div>' +
-        '</div>';
+      if (pendingRequests.length === 0) {
+        list.innerHTML =
+          '<div style="text-align:center;padding:50px 20px;color:var(--text-dim);">' +
+          '<div style="font-size:36px;margin-bottom:12px;">&#9680;</div>' +
+          '<div style="font-size:16px;font-weight:700;color:var(--text-warm);margin-bottom:6px;">No friends yet</div>' +
+          '<div style="font-size:13px;">Tap the + button above to add your first friend</div>' +
+          '</div>';
+      }
       return;
     }
 
@@ -1376,16 +1603,22 @@
       onError('Already in your friends list.');
       return;
     }
-    if (myProfile && myProfile.id === id) {
+    if (!myProfile) {
+      onError('Set up your own profile first, then you can add friends.');
+      return;
+    }
+    if (myProfile.id === id) {
       onError("That's your own ID.");
       return;
     }
 
-    apiGetProfile(id).then(function(res) {
-      if (!res.ok) { onError('No profile found with that ID.'); return; }
+    apiCreateFriendRequest(myProfile.id, id).then(function(res) {
+      if (!res.ok) { onError(res.body.error || 'No profile found with that ID.'); return; }
+      // We don't know their name yet (that requires approval first) — store
+      // a placeholder using the ID itself, refined once approved.
       addMyFriend(id, (nickname || '').trim());
       loadMyFriends();
-      onSuccess(res.body);
+      onSuccess({ id: id, pending: res.body.status !== 'approved' });
     }).catch(function() {
       onError('Network error — please try again.');
     });
@@ -1443,11 +1676,11 @@
         if (code && code.data) {
           statusEl.textContent = 'Found a code — adding friend…';
           stopScanner();
-          tryAddFriendById(code.data, '', function(profile) {
-            statusEl.textContent = 'Added ' + profile.name + '!';
+          tryAddFriendById(code.data, '', function(result) {
+            statusEl.textContent = result.pending ? 'Request sent — waiting for approval' : 'Added!';
             setTimeout(function() {
               document.getElementById('addSheetOverlay').classList.remove('open');
-            }, 800);
+            }, 1000);
           }, function(msg) {
             statusEl.textContent = msg;
             setTimeout(startScanner, 1500);
@@ -1572,7 +1805,10 @@
       localStorage.removeItem('sundial_friends');
       myProfile = null;
       realFriends = [];
+      pendingRequests = [];
       myPhotoDataUrl = null;
+      document.getElementById('meMenuBadge').style.display = 'none';
+      document.getElementById('requestsSection').style.display = 'none';
 
       document.getElementById('meNameInput').value = '';
       document.getElementById('meCityInput').value = '';
@@ -1588,7 +1824,10 @@
         '<div style="width:160px;height:160px;display:flex;align-items:center;justify-content:center;color:#999;font-size:12px;text-align:center;padding:10px;">QR generates after you save your profile</div>';
 
       renderFriends();
-      if (globeInitialized) renderGlobeFriendList();
+      if (globeInitialized) {
+        renderGlobeFriendList();
+        if (window.__rebuildGlobePins) window.__rebuildGlobePins();
+      }
 
       document.getElementById('deleteConfirmRow').style.display = 'none';
       document.getElementById('meMenuPanel').classList.remove('open');
@@ -1638,7 +1877,36 @@
 
   // ===== Photo upload: resize/compress client-side before storing as base64 =====
   document.getElementById('meAvatarEdit').addEventListener('click', function() {
+    document.getElementById('removePhotoBtn').style.display = myPhotoDataUrl ? 'block' : 'none';
+    document.getElementById('photoActionOverlay').classList.add('open');
+  });
+  document.getElementById('cancelPhotoActionBtn').addEventListener('click', function() {
+    document.getElementById('photoActionOverlay').classList.remove('open');
+  });
+  document.getElementById('changePhotoBtn').addEventListener('click', function() {
+    document.getElementById('photoActionOverlay').classList.remove('open');
     document.getElementById('mePhotoInput').click();
+  });
+  document.getElementById('removePhotoBtn').addEventListener('click', function() {
+    document.getElementById('photoActionOverlay').classList.remove('open');
+    myPhotoDataUrl = null;
+    renderMeAvatar();
+
+    var existingId = getMyProfileId();
+    if (existingId) {
+      setMeSaveStatus('Removing photo…', false);
+      apiUpdateProfile(existingId, { photo_base64: '' }).then(function(res) {
+        if (res.ok) {
+          myProfile = res.body;
+          setMeSaveStatus('Photo removed ✓', false);
+          if (globeInitialized && window.__rebuildGlobePins) window.__rebuildGlobePins();
+        } else {
+          setMeSaveStatus(res.body.error || 'Failed to remove photo.', true);
+        }
+      });
+    } else {
+      setMeSaveStatus('Photo removed — will apply when you save your profile.', false);
+    }
   });
 
   function resizeImageFile(file, maxDimension, quality) {
@@ -1771,6 +2039,9 @@
           if (!res.ok) throw new Error(res.body.error || 'Failed to create profile.');
           myProfile = res.body;
           setMyProfileId(myProfile.id);
+          if (res.body.recovery_code) {
+            showRecoveryCodeSheet(res.body.recovery_code);
+          }
           return myProfile;
         });
       }
@@ -1778,10 +2049,90 @@
       setMeSaveStatus('Saved ✓', false);
       renderMyQrCode(profile.id);
       document.getElementById('meIdDisplay').textContent = profile.id;
+      if (globeInitialized && window.__rebuildGlobePins) window.__rebuildGlobePins();
     }).catch(function(err) {
       setMeSaveStatus(err.message || 'Something went wrong.', true);
     }).finally(function() {
       btn.disabled = false;
+    });
+  });
+
+  function showRecoveryCodeSheet(code) {
+    document.getElementById('recoveryCodeDisplay').textContent = code;
+    document.getElementById('recoveryCodeOverlay').classList.add('open');
+  }
+
+  document.getElementById('copyRecoveryCodeBtn').addEventListener('click', function() {
+    var btn = this;
+    var code = document.getElementById('recoveryCodeDisplay').textContent;
+    navigator.clipboard.writeText(code).then(function() {
+      var original = btn.textContent;
+      btn.textContent = 'Copied ✓';
+      setTimeout(function() { btn.textContent = original; }, 1200);
+    }).catch(function() {
+      alert('Your recovery code: ' + code);
+    });
+  });
+  document.getElementById('closeRecoveryCodeBtn').addEventListener('click', function() {
+    document.getElementById('recoveryCodeOverlay').classList.remove('open');
+  });
+
+  // ===== Restore access on a new/wiped device =====
+  document.getElementById('openRestoreLink').addEventListener('click', function(e) {
+    e.preventDefault();
+    document.getElementById('restoreError').classList.remove('show');
+    document.getElementById('restoreIdInput').value = '';
+    document.getElementById('restoreCodeInput').value = '';
+    document.getElementById('restoreAccessOverlay').classList.add('open');
+  });
+  document.getElementById('cancelRestoreBtn').addEventListener('click', function() {
+    document.getElementById('restoreAccessOverlay').classList.remove('open');
+  });
+  document.getElementById('confirmRestoreBtn').addEventListener('click', function() {
+    var btn = this;
+    var id = document.getElementById('restoreIdInput').value.trim();
+    var code = document.getElementById('restoreCodeInput').value.trim();
+    var errEl = document.getElementById('restoreError');
+    errEl.classList.remove('show');
+
+    if (!id || !code) {
+      errEl.textContent = 'Please enter both your ID and recovery code.';
+      errEl.classList.add('show');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Restoring…';
+
+    apiRecoverProfile(id, code).then(function(res) {
+      if (!res.ok) {
+        errEl.textContent = res.body.error || 'Invalid ID or recovery code.';
+        errEl.classList.add('show');
+        return;
+      }
+      myProfile = res.body;
+      setMyProfileId(myProfile.id);
+      document.getElementById('meNameInput').value = myProfile.name || '';
+      document.getElementById('meCityInput').value = myProfile.city_name || '';
+      document.getElementById('meStatusMsg').value = myProfile.status_message || '';
+      meSelectedStatus = myProfile.status || 'available';
+      if (meSelectedStatus === 'busy') document.getElementById('statusBusyBtn').click();
+      myPhotoDataUrl = myProfile.photo_base64 || null;
+      syncMeNamePreview();
+      syncMeCityPreview();
+      renderMeAvatar();
+      document.getElementById('meIdDisplay').textContent = myProfile.id;
+      renderMyQrCode(myProfile.id);
+      document.getElementById('restoreAccessOverlay').classList.remove('open');
+      setMeSaveStatus('Welcome back ✓', false);
+      loadIncomingRequests();
+      loadMyFriends();
+    }).catch(function() {
+      errEl.textContent = 'Network error — please try again.';
+      errEl.classList.add('show');
+    }).finally(function() {
+      btn.disabled = false;
+      btn.textContent = 'Restore';
     });
   });
 
@@ -1799,7 +2150,7 @@
         '<div style="width:160px;height:160px;display:flex;align-items:center;justify-content:center;color:#999;font-size:12px;text-align:center;padding:10px;">QR generates after you save your profile</div>';
       return;
     }
-    apiGetProfile(id).then(function(res) {
+    apiGetProfile(id, id).then(function(res) {
       if (!res.ok) return; // profile may have been wiped if backend DB was recreated
       myProfile = res.body;
       document.getElementById('meNameInput').value = myProfile.name || '';
@@ -1815,6 +2166,54 @@
       renderMeAvatar();
       document.getElementById('meIdDisplay').textContent = myProfile.id;
       renderMyQrCode(myProfile.id);
+      if (globeInitialized && window.__rebuildGlobePins) window.__rebuildGlobePins();
+      loadIncomingRequests();
+      loadMyFriends(); // now that myProfile is known, fetch friends with the correct viewer identity
+    });
+  }
+
+  function loadIncomingRequests() {
+    if (!myProfile) return;
+    apiListIncomingRequests(myProfile.id).then(function(res) {
+      if (!res.ok) return;
+      var requests = res.body.requests;
+      var badge = document.getElementById('meMenuBadge');
+      var section = document.getElementById('requestsSection');
+      var listEl = document.getElementById('requestsList');
+      var countEl = document.getElementById('requestsCount');
+
+      if (requests.length === 0) {
+        badge.style.display = 'none';
+        section.style.display = 'none';
+        return;
+      }
+
+      badge.style.display = 'flex';
+      badge.textContent = requests.length;
+      section.style.display = 'block';
+      countEl.textContent = requests.length;
+
+      listEl.innerHTML = '';
+      requests.forEach(function(r) {
+        var row = document.createElement('div');
+        row.className = 'request-row';
+        row.innerHTML =
+          '<span class="req-name">' + (r.requester_name || 'Someone') + '</span>' +
+          '<button class="approve-btn" data-id="' + r.id + '" data-action="approve">Approve</button>' +
+          '<button class="deny-btn" data-id="' + r.id + '" data-action="deny">Deny</button>';
+        listEl.appendChild(row);
+      });
+
+      listEl.querySelectorAll('button').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var requestId = btn.dataset.id;
+          var action = btn.dataset.action;
+          btn.disabled = true;
+          apiRespondToRequest(requestId, myProfile.id, action).then(function(res) {
+            if (res.ok) loadIncomingRequests();
+          });
+        });
+      });
     });
   }
 
@@ -1833,11 +2232,44 @@
     var nicknameById = {};
     friendEntries.forEach(function(f) { nicknameById[f.id] = f.nickname; });
 
-    apiGetProfilesBatch(ids).then(function(res) {
-      if (!res.ok) return;
-      realFriends = res.body.profiles
-        .filter(function(p) { return p !== null; })
-        .map(function(p) { return adaptProfileForDisplay(p, nicknameById[p.id]); });
+    if (!myProfile) return; // can't determine viewer identity yet
+
+    Promise.all([
+      apiGetProfilesBatch(ids, myProfile.id),
+      apiListOutgoingRequests(myProfile.id)
+    ]).then(function(results) {
+      var batchRes = results[0], outgoingRes = results[1];
+      if (!batchRes.ok) return;
+
+      var statusByTargetId = {};
+      if (outgoingRes.ok) {
+        outgoingRes.body.requests.forEach(function(r) { statusByTargetId[r.target_id] = r.status; });
+      }
+
+      var approvedFriends = [];
+      var pendingFriends = [];
+
+      ids.forEach(function(id, i) {
+        var profile = batchRes.body.profiles[i];
+        if (profile) {
+          approvedFriends.push(adaptProfileForDisplay(profile, nicknameById[id]));
+        } else {
+          var reqStatus = statusByTargetId[id]; // 'pending', 'denied', or undefined
+          if (reqStatus === 'pending') {
+            pendingFriends.push({
+              id: id,
+              displayName: (nicknameById[id] && nicknameById[id].trim()) || 'Pending request',
+              nickname: nicknameById[id] || '',
+              pending: true
+            });
+          }
+          // If denied or unknown, we simply don't show them — same as before,
+          // a quietly-missing entry rather than a harsh "denied" notice.
+        }
+      });
+
+      realFriends = approvedFriends;
+      pendingRequests = pendingFriends;
       renderFriends();
       if (globeInitialized) {
         renderGlobeFriendList();
@@ -1846,8 +2278,7 @@
     });
   }
 
-  loadMyProfileIfExists();
-  loadMyFriends();
+  loadMyProfileIfExists(); // this also triggers loadMyFriends() once myProfile resolves, since loadMyFriends needs viewer identity
 
   // Pull-to-refresh on the Circle (Friends) tab — pull down from the top to
   // re-fetch your own profile + all friends' latest data.
@@ -1906,9 +2337,12 @@
 
   setupPullToRefresh('friendsScreen', 'pullRefreshIndicator', 'pullRefreshIcon', function() {
     var profileRefresh = myProfile
-      ? apiGetProfile(myProfile.id).then(function(res) { if (res.ok) myProfile = res.body; })
+      ? apiGetProfile(myProfile.id, myProfile.id).then(function(res) { if (res.ok) myProfile = res.body; })
       : Promise.resolve();
-    return profileRefresh.then(function() { loadMyFriends(); });
+    return profileRefresh.then(function() {
+      loadIncomingRequests();
+      return loadMyFriends();
+    });
   });
 
   setupPullToRefresh('globeScreen', 'atlasPullRefreshIndicator', 'atlasPullRefreshIcon', function() {
@@ -1920,14 +2354,20 @@
   setInterval(function() {
     if (document.getElementById('friendsScreen').classList.contains('active')) {
       loadMyFriends();
+      loadIncomingRequests();
     }
   }, 60000); // every 60 seconds
 
   // ===== GLOBE: real Three.js implementation =====
   var globeInitialized = false;
   var globeScene, globeCamera, globeRenderer, globeSphere, globeGroup, pinGroup;
-  var globeRotY = 0, globeRotX = 0.3;
+  var GLOBE_DEFAULT_ROT_X = 0.3;
+  var GLOBE_DEFAULT_CAMERA_Z = 2.6;
+  var GLOBE_MIN_ZOOM = 1.3, GLOBE_MAX_ZOOM = 5.5;
+  var globeRotY = 0, globeRotX = GLOBE_DEFAULT_ROT_X;
+  var globeCameraZ = GLOBE_DEFAULT_CAMERA_Z;
   var isDragging = false, lastPointerX = 0, lastPointerY = 0;
+  var lastPinchDist = null;
 
   function solarPosition(date) {
     // Returns subsolar point {lat, lon} in degrees — the point on Earth directly under the sun.
@@ -2019,7 +2459,7 @@
 
       globeScene = new THREE.Scene();
       globeCamera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-      globeCamera.position.z = 2.6;
+      globeCamera.position.z = globeCameraZ;
 
       globeRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       globeRenderer.setSize(width, height);
@@ -2032,13 +2472,17 @@
       var geometry = new THREE.SphereGeometry(1, 64, 64);
       var material = new THREE.MeshPhongMaterial({
         color: 0x223355, // visible placeholder color while the real texture loads
-        shininess: 5
+        shininess: 5,
+        emissive: 0xffffff,   // tinted by emissiveMap once it loads — city lights glow on the night side
+        emissiveIntensity: 1.1
       });
       globeSphere = new THREE.Mesh(geometry, material);
       globeGroup.add(globeSphere);
 
       var textureLoader = new THREE.TextureLoader();
       var earthTextureUrl = 'https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg';
+      var earthNightTextureUrl = 'https://unpkg.com/three-globe/example/img/earth-dark.jpg';
+
       textureLoader.load(
         earthTextureUrl,
         function (loadedTexture) {
@@ -2055,11 +2499,31 @@
         }
       );
 
-      var ambient = new THREE.AmbientLight(0x8899bb, 2.3);
+      textureLoader.load(
+        earthNightTextureUrl,
+        function (loadedTexture) {
+          material.emissiveMap = loadedTexture;
+          material.needsUpdate = true;
+        },
+        undefined,
+        function () { /* night texture is a nice-to-have — silently skip if it fails to load */ }
+      );
+
+      // Low ambient + strong directional sun light gives a real day/night
+      // contrast — the lit side reads clearly bright, the unlit side goes
+      // genuinely dark, with the emissive night-lights texture still glowing
+      // softly through on that dark side (like satellite views of Earth at night).
+      //
+      // The sun light is added to globeGroup (not globeScene directly) so it
+      // rotates together with the Earth mesh and pins. This keeps day/night
+      // correctly attached to continents as you drag to rotate the view —
+      // otherwise the light would stay fixed in world space and the
+      // terminator would appear to "not move" while continents spun under it.
+      var ambient = new THREE.AmbientLight(0x445577, 0.55);
       globeScene.add(ambient);
 
-      var sunLight = new THREE.DirectionalLight(0xfff2d8, 0.55);
-      globeScene.add(sunLight);
+      var sunLight = new THREE.DirectionalLight(0xfff2d8, 1.7);
+      globeGroup.add(sunLight);
       globeGroup.userData.sunLight = sunLight;
 
       pinGroup = new THREE.Group();
@@ -2189,6 +2653,11 @@
           var color = f.status === 'available' ? 0x6FCF97 : 0xE8604C;
           window.__addGlobePin(f.lat, f.lon, color, f.initial, f.photo);
         });
+
+        // "You" pin — distinct amber color so it's clearly different from friends
+        if (myProfile && typeof myProfile.latitude === 'number' && typeof myProfile.longitude === 'number') {
+          window.__addGlobePin(myProfile.latitude, myProfile.longitude, 0xF2A65A, 'Y', myProfile.photo_base64 || null);
+        }
       };
 
       window.__rebuildGlobePins();
@@ -2211,6 +2680,7 @@
       function render() {
         globeGroup.rotation.y = globeRotY;
         globeGroup.rotation.x = globeRotX;
+        globeCamera.position.z = globeCameraZ;
         globeRenderer.render(globeScene, globeCamera);
         requestAnimationFrame(render);
       }
@@ -2233,17 +2703,49 @@
       }
       function onPointerUp() { isDragging = false; }
 
+      function pinchDistance(touches) {
+        var dx = touches[0].clientX - touches[1].clientX;
+        var dy = touches[0].clientY - touches[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+      }
+
       container.addEventListener('mousedown', function(e) { onPointerDown(e.clientX, e.clientY); });
       window.addEventListener('mousemove', function(e) { onPointerMove(e.clientX, e.clientY); });
       window.addEventListener('mouseup', onPointerUp);
+
+      // Mouse wheel zoom (desktop/trackpad), as a bonus alongside touch pinch-zoom
+      container.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        globeCameraZ += e.deltaY * 0.003;
+        globeCameraZ = Math.max(GLOBE_MIN_ZOOM, Math.min(GLOBE_MAX_ZOOM, globeCameraZ));
+      }, { passive: false });
+
       container.addEventListener('touchstart', function(e) {
-        onPointerDown(e.touches[0].clientX, e.touches[0].clientY);
+        if (e.touches.length === 2) {
+          isDragging = false; // a pinch takes priority over a rotate-drag
+          lastPinchDist = pinchDistance(e.touches);
+        } else {
+          onPointerDown(e.touches[0].clientX, e.touches[0].clientY);
+        }
       });
       container.addEventListener('touchmove', function(e) {
         e.preventDefault();
-        onPointerMove(e.touches[0].clientX, e.touches[0].clientY);
+        if (e.touches.length === 2) {
+          var dist = pinchDistance(e.touches);
+          if (lastPinchDist !== null) {
+            var delta = dist - lastPinchDist;
+            globeCameraZ -= delta * 0.012; // pinch outward (fingers apart) = zoom in = camera closer
+            globeCameraZ = Math.max(GLOBE_MIN_ZOOM, Math.min(GLOBE_MAX_ZOOM, globeCameraZ));
+          }
+          lastPinchDist = dist;
+        } else {
+          onPointerMove(e.touches[0].clientX, e.touches[0].clientY);
+        }
       }, { passive: false });
-      container.addEventListener('touchend', onPointerUp);
+      container.addEventListener('touchend', function(e) {
+        if (e.touches.length < 2) lastPinchDist = null;
+        onPointerUp();
+      });
 
       window.addEventListener('resize', function() {
         var w = container.clientWidth || width;
@@ -2254,6 +2756,12 @@
       });
 
       renderGlobeFriendList();
+
+      document.getElementById('globeResetBtn').addEventListener('click', function() {
+        globeRotY = 0;
+        globeRotX = GLOBE_DEFAULT_ROT_X;
+        globeCameraZ = GLOBE_DEFAULT_CAMERA_Z;
+      });
 
     } catch (err) {
       globeInitialized = false; // allow retry if user switches tabs again
@@ -2270,16 +2778,73 @@
   function renderGlobeFriendList() {
     var list = document.getElementById('globeFriendList');
     list.innerHTML = '';
+    var now = new Date();
     realFriends.forEach(function(f) {
       var row = document.createElement('div');
       row.className = 'globe-friend-row';
+      var t = formatTimeForDisplay(now, f.tz);
       row.innerHTML =
-        '<div class="friend-avatar">' + (f.photo ? '<img src="' + f.photo + '" alt="' + f.name + '">' : f.initial) + '</div>' +
-        '<div class="fname">' + f.name + '</div>' +
+        '<div class="friend-avatar">' + (f.photo ? '<img src="' + f.photo + '" alt="' + f.displayName + '">' : f.initial) + '</div>' +
+        '<div class="fname">' + f.displayName + '</div>' +
+        '<div class="fname-time">' + t.timeStr + (t.ampm ? ' ' + t.ampm : '') + '</div>' +
         '<span class="status-dot ' + f.status + '"></span>' +
         '<div class="fcity">' + (f.city || '') + '</div>';
+
+      if (typeof f.lat === 'number' && typeof f.lon === 'number') {
+        row.style.cursor = 'pointer';
+        row.addEventListener('click', function() {
+          focusGlobeOnLocation(f.lat, f.lon);
+        });
+      }
+
       list.appendChild(row);
     });
+  }
+
+  // Smoothly rotates the globe so the given lat/lon faces the camera directly.
+  // Derivation: a point at (lat, lon) sits at world position
+  // (cos(lat)cos(lon), sin(lat), -cos(lat)sin(lon)) before rotation. Rotating
+  // the whole group by angle θ around Y maps that to face the camera (+z)
+  // exactly when θ = -(lonRadians + π/2) — verified numerically during build.
+  var globeFocusAnimating = false;
+  function focusGlobeOnLocation(lat, lon) {
+    if (!globeInitialized || globeFocusAnimating) return;
+    var lonRad = lon * Math.PI / 180;
+    var targetRotY = -(lonRad + Math.PI / 2);
+
+    // Normalize both angles into the same -π..π range and take the shortest
+    // path, so the globe always spins the short way around rather than
+    // potentially doing a near-full unnecessary rotation.
+    function normalize(angle) {
+      while (angle > Math.PI) angle -= Math.PI * 2;
+      while (angle < -Math.PI) angle += Math.PI * 2;
+      return angle;
+    }
+    var startRotY = normalize(globeRotY);
+    var delta = normalize(targetRotY - startRotY);
+    var endRotY = startRotY + delta;
+
+    globeFocusAnimating = true;
+    var startTime = performance.now();
+    var duration = 700;
+
+    function easeInOutCubic(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function step() {
+      var elapsed = performance.now() - startTime;
+      var progress = Math.min(elapsed / duration, 1);
+      var eased = easeInOutCubic(progress);
+      globeRotY = startRotY + delta * eased;
+      if (progress < 1) {
+        requestAnimationFrame(step);
+      } else {
+        globeRotY = normalize(endRotY);
+        globeFocusAnimating = false;
+      }
+    }
+    requestAnimationFrame(step);
   }
 </script>
 
