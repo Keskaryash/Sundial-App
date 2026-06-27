@@ -96,6 +96,15 @@
     cursor: pointer;
   }
   .regen-btn:disabled { opacity: 0.4; cursor: default; }
+  .friends-toggle-btn {
+    background: none;
+    border: 1px solid #333;
+    color: #ccc;
+    padding: 4px 9px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+  }
   .empty-state { text-align: center; padding: 60px 20px; color: #666; }
 </style>
 </head>
@@ -119,6 +128,7 @@
       <th>Timezone</th>
       <th>Status</th>
       <th>Recovery</th>
+      <th>Friends</th>
       <th>Updated</th>
       <th></th>
     </tr>
@@ -148,19 +158,22 @@
     setStatus('Loading…', false);
     document.getElementById('loadBtn').disabled = true;
 
-    fetch(API_BASE + '/api/admin/profiles', {
-      headers: { 'X-Admin-Key': key }
-    }).then(function(r) {
-      return r.json().then(function(body) { return { ok: r.ok, body: body }; });
-    }).then(function(res) {
-      if (!res.ok) {
-        setStatus(res.body.error || 'Failed to load profiles.', true);
+    Promise.all([
+      fetch(API_BASE + '/api/admin/profiles', { headers: { 'X-Admin-Key': key } })
+        .then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); }),
+      fetch(API_BASE + '/api/admin/friend-requests', { headers: { 'X-Admin-Key': key } })
+        .then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); })
+    ]).then(function(results) {
+      var profilesRes = results[0], requestsRes = results[1];
+      if (!profilesRes.ok) {
+        setStatus(profilesRes.body.error || 'Failed to load profiles.', true);
         document.getElementById('profilesTable').style.display = 'none';
         document.getElementById('emptyState').style.display = 'none';
         return;
       }
-      setStatus(res.body.count + ' profile(s) found.', false);
-      renderTable(res.body.profiles, key);
+      setStatus(profilesRes.body.count + ' profile(s) found.', false);
+      var allRequests = requestsRes.ok ? requestsRes.body.requests : [];
+      renderTable(profilesRes.body.profiles, key, allRequests);
     }).catch(function() {
       setStatus('Network error.', true);
     }).finally(function() {
@@ -168,11 +181,12 @@
     });
   }
 
-  function renderTable(profiles, key) {
+  function renderTable(profiles, key, allRequests) {
     var table = document.getElementById('profilesTable');
     var body = document.getElementById('profilesBody');
     var empty = document.getElementById('emptyState');
     body.innerHTML = '';
+    allRequests = allRequests || [];
 
     if (profiles.length === 0) {
       table.style.display = 'none';
@@ -188,6 +202,10 @@
       var recoveryLabel = p.has_recovery_code
         ? '<span style="color:#6fcf97;">&#10003; set</span>'
         : '<span style="color:#666;">none</span>';
+
+      var outgoing = allRequests.filter(function(r) { return r.requester_id === p.id; });
+      var approvedCount = outgoing.filter(function(r) { return r.status === 'approved'; }).length;
+
       tr.innerHTML =
         '<td>' + escapeHtml(p.name || '—') + '</td>' +
         '<td class="mono">' + escapeHtml(p.id) + '</td>' +
@@ -195,12 +213,52 @@
         '<td class="mono">' + escapeHtml(p.timezone || '—') + '</td>' +
         '<td><span class="status-pill ' + p.status + '">' + p.status + '</span></td>' +
         '<td>' + recoveryLabel + '</td>' +
+        '<td>' + (outgoing.length > 0
+          ? '<button class="friends-toggle-btn" data-id="' + escapeHtml(p.id) + '" data-count="' + approvedCount + '">' + approvedCount + ' &#9656;</button>'
+          : '<span style="color:#666;">0</span>') + '</td>' +
         '<td>' + updated + '</td>' +
         '<td>' +
           '<button class="del-btn" data-id="' + escapeHtml(p.id) + '">Delete</button> ' +
           '<button class="regen-btn" data-id="' + escapeHtml(p.id) + '">New code</button>' +
         '</td>';
       body.appendChild(tr);
+
+      if (outgoing.length > 0) {
+        var detailRow = document.createElement('tr');
+        detailRow.className = 'friends-detail-row';
+        detailRow.dataset.ownerId = p.id;
+        detailRow.style.display = 'none';
+        var detailCell = document.createElement('td');
+        detailCell.colSpan = 9;
+        detailCell.style.cssText = 'background:#161616;padding:10px 16px;';
+
+        var list = outgoing.map(function(r) {
+          var statusColor = r.status === 'approved' ? '#6fcf97' : (r.status === 'pending' ? '#f2a65a' : '#666');
+          var nicknameSuffix = r.nickname ? ' <span style="color:#888;">(as "' + escapeHtml(r.nickname) + '")</span>' : '';
+          return '<div style="padding:3px 0;">' +
+            '<span style="color:' + statusColor + ';">&#9679;</span> ' +
+            escapeHtml(r.target_name) + nicknameSuffix +
+            ' <span class="mono" style="color:#666;font-size:11px;">' + escapeHtml(r.target_id) + '</span>' +
+            ' <span style="color:#666;font-size:11px;">— ' + r.status + '</span>' +
+            '</div>';
+        }).join('');
+
+        detailCell.innerHTML = list;
+        detailRow.appendChild(detailCell);
+        body.appendChild(detailRow);
+      }
+    });
+
+    body.querySelectorAll('.friends-toggle-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var id = btn.dataset.id;
+        var count = btn.dataset.count;
+        var detailRow = body.querySelector('.friends-detail-row[data-owner-id="' + id + '"]');
+        if (!detailRow) return;
+        var isOpen = detailRow.style.display !== 'none';
+        detailRow.style.display = isOpen ? 'none' : 'table-row';
+        btn.innerHTML = count + ' ' + (isOpen ? '&#9656;' : '&#9662;');
+      });
     });
 
     body.querySelectorAll('.del-btn').forEach(function(btn) {

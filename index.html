@@ -15,9 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/three@0.128.0/build/three.min.js" onerror="window.__threeFailedToLoad = true;"></script>
 <script src="https://unpkg.com/tz-lookup@6.1.25/tz.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
   :root {
     --card-radius: 20px;
@@ -935,6 +933,27 @@
 </div>
 
 <script>
+  // Lazily loads an external script exactly once, caching the in-flight/
+  // completed promise so repeated calls (e.g. reopening Atlas) don't
+  // re-fetch or re-inject the tag. Used to keep Three.js (~500KB+) and
+  // jsQR out of the initial page load entirely — they're only fetched the
+  // first time the globe or QR scanner actually opens.
+  var __scriptLoadPromises = {};
+  function loadScriptOnce(url) {
+    if (__scriptLoadPromises[url]) return __scriptLoadPromises[url];
+    __scriptLoadPromises[url] = new Promise(function(resolve, reject) {
+      var tag = document.createElement('script');
+      tag.src = url;
+      tag.onload = function() { resolve(); };
+      tag.onerror = function() {
+        delete __scriptLoadPromises[url]; // allow a retry later rather than permanently caching a failure
+        reject(new Error('Failed to load ' + url));
+      };
+      document.head.appendChild(tag);
+    });
+    return __scriptLoadPromises[url];
+  }
+
   var TAB_ORDER = ['globeScreen', 'friendsScreen', 'meScreen']; // matches both the DOM order of .screen elements and the nav bar's visual left-to-right order
   var currentTabIndex = TAB_ORDER.indexOf('friendsScreen'); // Circle is the default landing tab
   var track = document.getElementById('screensTrack');
@@ -1104,19 +1123,35 @@
     }).then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); });
   }
 
-  function apiCreateFriendRequest(requesterId, targetId) {
+  function apiCreateFriendRequest(requesterId, targetId, nickname) {
     return fetch(API_BASE + '/api/friend-request', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requester_id: requesterId, target_id: targetId })
+      body: JSON.stringify({ requester_id: requesterId, target_id: targetId, nickname: nickname || '' })
     }).then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); });
   }
 
-  function apiBackfillLegacyFriendship(profileIdA, profileIdB) {
+  function apiUpdateFriendNickname(requestId, requesterId, nickname) {
+    return fetch(API_BASE + '/api/friend-request/' + requestId + '/nickname', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requester_id: requesterId, nickname: nickname || '' })
+    }).then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); });
+  }
+
+  function apiRemoveFriendRequest(requestId, requesterId) {
+    return fetch(API_BASE + '/api/friend-request/' + requestId, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requester_id: requesterId })
+    }).then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); });
+  }
+
+  function apiBackfillLegacyFriendship(profileIdA, profileIdB, nicknameAForB) {
     return fetch(API_BASE + '/api/friend-request/backfill-legacy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profile_id_a: profileIdA, profile_id_b: profileIdB })
+      body: JSON.stringify({ profile_id_a: profileIdA, profile_id_b: profileIdB, nickname_a_for_b: nicknameAForB || '' })
     }).then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); })
       .catch(function() { return { ok: false, body: {} }; }); // never let one failed backfill block the retry
   }
@@ -1223,10 +1258,11 @@
 
   var offsetMinutes = 0;
 
-  function adaptProfileForDisplay(p, nickname) {
+  function adaptProfileForDisplay(p, nickname, requestId) {
     var displayName = (nickname && nickname.trim()) ? nickname.trim() : p.name;
     return {
       id: p.id,
+      requestId: requestId,
       name: p.name,
       nickname: nickname || '',
       displayName: displayName,
@@ -1574,9 +1610,9 @@
     dragState = null;
   }
 
-  var nicknameEditTargetId = null;
+  var nicknameEditTarget = null;
   function openNicknameEditor(friend) {
-    nicknameEditTargetId = friend.id;
+    nicknameEditTarget = friend;
     document.getElementById('nicknameRealName').textContent = friend.name;
     document.getElementById('nicknameEditInput').value = friend.nickname || '';
     document.getElementById('nicknameSheetOverlay').classList.add('open');
@@ -1585,16 +1621,23 @@
     document.getElementById('nicknameSheetOverlay').classList.remove('open');
   });
   document.getElementById('saveNicknameBtn').addEventListener('click', function() {
-    if (nicknameEditTargetId) {
-      updateFriendNickname(nicknameEditTargetId, document.getElementById('nicknameEditInput').value);
-      loadMyFriends();
+    if (nicknameEditTarget && myProfile) {
+      var newNickname = document.getElementById('nicknameEditInput').value;
+      updateFriendNickname(nicknameEditTarget.id, newNickname); // local cache, instant UI feedback
+      if (nicknameEditTarget.requestId) {
+        apiUpdateFriendNickname(nicknameEditTarget.requestId, myProfile.id, newNickname).then(function() {
+          loadMyFriends();
+        });
+      } else {
+        loadMyFriends();
+      }
     }
     document.getElementById('nicknameSheetOverlay').classList.remove('open');
   });
 
-  var removeFriendTargetId = null;
+  var removeFriendTarget = null;
   function confirmRemoveFriend(friend) {
-    removeFriendTargetId = friend.id;
+    removeFriendTarget = friend;
     document.getElementById('removeFriendName').textContent =
       (friend.nickname ? friend.nickname + ' (' + friend.name + ')' : friend.name);
     document.getElementById('removeFriendOverlay').classList.add('open');
@@ -1603,9 +1646,15 @@
     document.getElementById('removeFriendOverlay').classList.remove('open');
   });
   document.getElementById('confirmRemoveFriendBtn').addEventListener('click', function() {
-    if (removeFriendTargetId) {
-      removeFriend(removeFriendTargetId);
-      loadMyFriends();
+    if (removeFriendTarget && myProfile) {
+      removeFriend(removeFriendTarget.id); // local cache, instant UI feedback
+      if (removeFriendTarget.requestId) {
+        apiRemoveFriendRequest(removeFriendTarget.requestId, myProfile.id).then(function() {
+          loadMyFriends();
+        });
+      } else {
+        loadMyFriends();
+      }
     }
     document.getElementById('removeFriendOverlay').classList.remove('open');
   });
@@ -1692,10 +1741,8 @@
       return;
     }
 
-    apiCreateFriendRequest(myProfile.id, id).then(function(res) {
+    apiCreateFriendRequest(myProfile.id, id, (nickname || '').trim()).then(function(res) {
       if (!res.ok) { onError(res.body.error || 'No profile found with that ID.'); return; }
-      // We don't know their name yet (that requires approval first) — store
-      // a placeholder using the ID itself, refined once approved.
       addMyFriend(id, (nickname || '').trim());
       loadMyFriends();
       onSuccess({ id: id, pending: res.body.status !== 'approved' });
@@ -1735,16 +1782,21 @@
       return;
     }
 
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-      .then(function(stream) {
-        scannerStream = stream;
-        video.srcObject = stream;
-        statusEl.textContent = "Point your camera at a friend's QR code";
-        scanLoop();
-      })
-      .catch(function() {
-        statusEl.textContent = 'Camera access denied — use Enter ID instead.';
-      });
+    statusEl.textContent = 'Starting camera…';
+    loadScriptOnce('https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js').then(function() {
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        .then(function(stream) {
+          scannerStream = stream;
+          video.srcObject = stream;
+          statusEl.textContent = "Point your camera at a friend's QR code";
+          scanLoop();
+        })
+        .catch(function() {
+          statusEl.textContent = 'Camera access denied — use Enter ID instead.';
+        });
+    }).catch(function() {
+      statusEl.textContent = 'Could not load the scanner — use Enter ID instead.';
+    });
 
     function scanLoop() {
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
@@ -2248,9 +2300,24 @@
       document.getElementById('meIdDisplay').textContent = myProfile.id;
       renderMyQrCode(myProfile.id);
       document.getElementById('restoreAccessOverlay').classList.remove('open');
-      setMeSaveStatus('Welcome back ✓', false);
+      setMeSaveStatus('Restoring your friends…', false);
       loadIncomingRequests();
-      loadMyFriends();
+
+      // Rebuild the local friends list from the backend's record of this
+      // profile's outgoing requests — this is what makes recovery actually
+      // restore your Circle, not just your own profile. Local storage was
+      // never the source of truth for who you'd approved; the backend's
+      // friend_requests rows are, so we resync local state to match them.
+      apiListOutgoingRequests(myProfile.id).then(function(outgoingRes) {
+        if (outgoingRes.ok) {
+          var restored = outgoingRes.body.requests
+            .filter(function(r) { return r.status === 'approved' || r.status === 'pending'; })
+            .map(function(r) { return { id: r.target_id, nickname: r.nickname || '' }; });
+          setMyFriends(restored);
+        }
+        setMeSaveStatus('Welcome back ✓', false);
+        loadMyFriends();
+      });
     }).catch(function() {
       errEl.textContent = 'Network error — please try again.';
       errEl.classList.add('show');
@@ -2374,8 +2441,12 @@
       if (!batchRes.ok) return;
 
       var statusByTargetId = {};
+      var requestByTargetId = {};
       if (outgoingRes.ok) {
-        outgoingRes.body.requests.forEach(function(r) { statusByTargetId[r.target_id] = r.status; });
+        outgoingRes.body.requests.forEach(function(r) {
+          statusByTargetId[r.target_id] = r.status;
+          requestByTargetId[r.target_id] = r;
+        });
       }
 
       var approvedFriends = [];
@@ -2384,15 +2455,22 @@
 
       ids.forEach(function(id, i) {
         var profile = batchRes.body.profiles[i];
+        var req = requestByTargetId[id];
+        // Backend nickname is the source of truth (so recovery restores it
+        // correctly); fall back to whatever's in local storage only if the
+        // backend request doesn't have one recorded yet.
+        var nickname = (req && req.nickname) ? req.nickname : nicknameById[id];
+
         if (profile) {
-          approvedFriends.push(adaptProfileForDisplay(profile, nicknameById[id]));
+          approvedFriends.push(adaptProfileForDisplay(profile, nickname, req ? req.id : null));
         } else {
           var reqStatus = statusByTargetId[id]; // 'pending', 'denied', or undefined
           if (reqStatus === 'pending') {
             pendingFriends.push({
               id: id,
-              displayName: (nicknameById[id] && nicknameById[id].trim()) || 'Pending request',
-              nickname: nicknameById[id] || '',
+              requestId: req ? req.id : null,
+              displayName: (nickname && nickname.trim()) || 'Pending request',
+              nickname: nickname || '',
               pending: true
             });
           } else if (!reqStatus) {
@@ -2409,7 +2487,7 @@
       if (legacyIdsNeedingBackfill.length > 0 && !loadMyFriendsBackfillAttempted) {
         loadMyFriendsBackfillAttempted = true;
         Promise.all(legacyIdsNeedingBackfill.map(function(id) {
-          return apiBackfillLegacyFriendship(myProfile.id, id);
+          return apiBackfillLegacyFriendship(myProfile.id, id, nicknameById[id]);
         })).then(function() {
           loadMyFriends(); // retry now that the backfill should have created approved requests
         });
@@ -2587,11 +2665,26 @@
 
   function initGlobeIfNeeded() {
     if (globeInitialized) return;
+    loadScriptOnce('https://unpkg.com/three@0.128.0/build/three.min.js').then(function() {
+      buildGlobeScene();
+    }).catch(function(err) {
+      var container = document.getElementById('globeContainer');
+      container.innerHTML =
+        '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:#E8604C;font-size:13px;text-align:center;padding:20px;gap:10px;">' +
+        '<strong>Globe failed to load</strong>' +
+        '<span>Check your internet connection, then try again.</span>' +
+        '<button onclick="initGlobeIfNeeded()" style="background:#F2A65A;color:#0B0E1A;border:none;padding:8px 16px;border-radius:10px;font-weight:600;font-size:13px;cursor:pointer;">Retry</button>' +
+        '</div>';
+    });
+  }
+
+  function buildGlobeScene() {
+    if (globeInitialized) return;
 
     var container = document.getElementById('globeContainer');
 
     try {
-      if (typeof THREE === 'undefined' || window.__threeFailedToLoad) {
+      if (typeof THREE === 'undefined') {
         throw new Error('Three.js failed to load (check internet connection, then retry)');
       }
 
