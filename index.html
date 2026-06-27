@@ -600,7 +600,6 @@
   #globeScreen .app { padding-top: calc(20px + env(safe-area-inset-top)); padding-bottom: 100px; max-width: none; }
   .globe-header { max-width: 480px; margin: 0 auto 12px; padding: 0 20px; display: flex; justify-content: space-between; align-items: baseline; }
   .globe-header h1 { font-weight: 800; font-size: 26px; }
-  .globe-header .utc-time { font-size: 13px; color: var(--text-dim); font-weight: 500; }
   .globe-wrap { position: relative; }
   #globeContainer { width: 100%; height: 42vh; max-height: 380px; touch-action: none; cursor: grab; }
   .globe-reset-btn {
@@ -666,7 +665,6 @@
   <div class="app">
     <div class="globe-header">
       <h1>Atlas</h1>
-      <span class="utc-time" id="globeUtcTime">-- UTC</span>
     </div>
     <div class="globe-wrap">
       <div id="globeContainer"></div>
@@ -2784,10 +2782,12 @@
   var globeScene, globeCamera, globeRenderer, globeSphere, globeGroup, pinGroup;
   var GLOBE_DEFAULT_ROT_X = 0.3;
   var GLOBE_DEFAULT_CAMERA_Z = 2.6;
-  var GLOBE_MIN_ZOOM = 1.75, GLOBE_MAX_ZOOM = 5.5; // 1.75 keeps enough clearance from pin avatars (which float at radius 1.16) that zooming all the way in never lets a pin fill the whole frame
+  var GLOBE_MIN_ZOOM = 1.45, GLOBE_MAX_ZOOM = 5.5; // 1.45 allows a closer zoom than before while staying safely above the avatar orbit radius (1.16) — pins shrink proportionally via zoomScaleFactor as you get closer, so they stay out of the way
   var globeRotY = 0, globeRotX = GLOBE_DEFAULT_ROT_X;
   var globeCameraZ = GLOBE_DEFAULT_CAMERA_Z;
   var isDragging = false, lastPointerX = 0, lastPointerY = 0;
+  var globeRotVelocityY = 0; // current spin momentum, applied each frame and decaying via friction
+  var lastDragTimestamp = 0;
   var lastPinchDist = null;
 
   function solarPosition(date) {
@@ -3102,18 +3102,22 @@
         var sp = solarPosition(new Date());
         var sunPos = latLonToVector3(sp.lat, sp.lon, 5);
         globeGroup.userData.sunLight.position.copy(sunPos);
-        var utcLabel = document.getElementById('globeUtcTime');
-        if (utcLabel) {
-          var d = new Date();
-          var hh = String(d.getUTCHours()).padStart(2, '0');
-          var mm = String(d.getUTCMinutes()).padStart(2, '0');
-          utcLabel.textContent = hh + ':' + mm + ' UTC';
-        }
       }
       updateSunPosition();
       setInterval(updateSunPosition, 60000);
 
       function render() {
+        if (!isDragging && Math.abs(globeRotVelocityY) > 0.000001) {
+          // Coast on momentum from the last flick, applying actual elapsed
+          // frame time so the spin speed is consistent regardless of frame
+          // rate, then decay it via friction until it settles to a stop.
+          var now = performance.now();
+          var frameDt = Math.max(now - lastDragTimestamp, 1);
+          globeRotY += globeRotVelocityY * frameDt;
+          globeRotVelocityY *= 0.95; // friction — higher value coasts longer, lower stops sooner
+          lastDragTimestamp = now;
+        }
+
         globeGroup.rotation.y = globeRotY;
         globeGroup.rotation.x = globeRotX;
         globeCamera.position.z = globeCameraZ;
@@ -3140,16 +3144,28 @@
         isDragging = true;
         lastPointerX = x;
         lastPointerY = y;
+        lastDragTimestamp = performance.now();
+        globeRotVelocityY = 0; // a fresh grab always cancels any spin still coasting from before
       }
       function onPointerMove(x, y) {
         if (!isDragging) return;
+        var now = performance.now();
+        var dt = Math.max(now - lastDragTimestamp, 1); // ms; floor avoids divide-by-zero on duplicate-timestamp events
         var dx = x - lastPointerX;
         var dy = y - lastPointerY;
+
         globeRotY += dx * 0.005;
         globeRotX += dy * 0.003;
         globeRotX = Math.max(0.15, Math.min(0.45, globeRotX)); // small tilt range around the default 0.3
+
+        // Track rotation speed (radians/ms) from this single move, so a fast
+        // flick right before release carries real momentum into the spin —
+        // a small slow nudge barely moves it, exactly like a real globe.
+        globeRotVelocityY = (dx * 0.005) / dt;
+
         lastPointerX = x;
         lastPointerY = y;
+        lastDragTimestamp = now;
       }
       function onPointerUp() { isDragging = false; }
 
@@ -3208,9 +3224,13 @@
       renderGlobeFriendList();
 
       document.getElementById('globeResetBtn').addEventListener('click', function() {
-        globeRotY = 0;
         globeRotX = GLOBE_DEFAULT_ROT_X;
         globeCameraZ = GLOBE_DEFAULT_CAMERA_Z;
+        if (myProfile && typeof myProfile.latitude === 'number' && typeof myProfile.longitude === 'number') {
+          focusGlobeOnLocation(myProfile.latitude, myProfile.longitude); // smoothly turn to face your own location
+        } else {
+          globeRotY = 0; // no saved location yet — fall back to the old fixed default angle
+        }
       });
 
     } catch (err) {
@@ -3259,6 +3279,7 @@
   var globeFocusAnimating = false;
   function focusGlobeOnLocation(lat, lon) {
     if (!globeInitialized || globeFocusAnimating) return;
+    globeRotVelocityY = 0; // cancel any coasting spin so it doesn't fight this animation's own rotation
     var lonRad = lon * Math.PI / 180;
     var targetRotY = -(lonRad + Math.PI / 2);
 
