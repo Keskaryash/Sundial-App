@@ -80,9 +80,37 @@
   .screen {
     width: 100vw;
     height: 100vh;
+    flex-shrink: 0;
+    overflow: hidden; /* each screen now controls its own internal scroll regions individually */
+  }
+
+  /* Me tab: the whole screen is a non-scrolling flex column sized to fit
+     exactly within the viewport — no scrolling anywhere on this tab. */
+  #meScreen .app {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto; /* fits without scrolling on normal screens; gracefully scrollable rather than clipped on very small ones */
+    -webkit-overflow-scrolling: touch;
+  }
+  #meScreen .me-menu-panel.open {
+    overflow-y: auto; /* the expanded menu panel itself can scroll internally if its content is tall, without affecting the rest of the tab */
+  }
+
+  /* Circle & Atlas tabs: a fixed (non-scrolling) header/controls area, with
+     only the list of people below it scrolling independently. */
+  #friendsScreen .app, #globeScreen .app {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .scrollable-list-area {
+    flex: 1;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    flex-shrink: 0;
   }
 
   .app {
@@ -354,7 +382,7 @@
     mask-position: center;
   }
 
-  .me-header { text-align: center; padding: 12px 0 28px; }
+  .me-header { text-align: center; padding: 8px 0 18px; }
   .me-avatar-wrap { position: relative; display: inline-block; margin-bottom: 16px; }
   .me-avatar {
     width: 96px; height: 96px; border-radius: 50%;
@@ -406,7 +434,7 @@
   .status-toggle-wrap button.active { color: #0B2818; }
   .status-toggle-wrap.is-busy button.active { color: #2A0E08; }
 
-  .field { margin-bottom: 16px; }
+  .field { margin-bottom: 12px; }
   .field label {
     display: block; font-size: 12px; color: var(--text-dim);
     margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
@@ -626,9 +654,6 @@
 <div class="screens-track" id="screensTrack">
 <div class="screen" id="globeScreen">
   <div class="app">
-    <div class="pull-refresh-indicator" id="atlasPullRefreshIndicator">
-      <span class="pull-refresh-icon" id="atlasPullRefreshIcon">&#x21bb;</span>
-    </div>
     <div class="globe-header">
       <h1>Atlas</h1>
       <span class="utc-time" id="globeUtcTime">-- UTC</span>
@@ -637,7 +662,12 @@
       <div id="globeContainer"></div>
       <button class="globe-reset-btn" id="globeResetBtn" title="Reset view">&#x21bb;</button>
     </div>
-    <div class="globe-friend-list" id="globeFriendList"></div>
+    <div class="scrollable-list-area" id="atlasScrollArea">
+      <div class="pull-refresh-indicator" id="atlasPullRefreshIndicator">
+        <span class="pull-refresh-icon" id="atlasPullRefreshIcon">&#x21bb;</span>
+      </div>
+      <div class="globe-friend-list" id="globeFriendList"></div>
+    </div>
   </div>
 </div>
 
@@ -650,10 +680,6 @@
       </div>
       <button class="add-btn" id="openAddSheet">+</button>
     </header>
-
-    <div class="pull-refresh-indicator" id="pullRefreshIndicator">
-      <span class="pull-refresh-icon" id="pullRefreshIcon">&#x21bb;</span>
-    </div>
 
     <div class="my-time-row" id="myTimeRow" style="display:none;">
       <span class="my-time-label">Your time</span>
@@ -669,7 +695,12 @@
     </div>
     <p class="hint">drag the slider to see everyone's sky shift through their day</p>
 
-    <div id="friendList"></div>
+    <div class="scrollable-list-area" id="friendsScrollArea">
+      <div class="pull-refresh-indicator" id="pullRefreshIndicator">
+        <span class="pull-refresh-icon" id="pullRefreshIcon">&#x21bb;</span>
+      </div>
+      <div id="friendList"></div>
+    </div>
   </div>
 </div>
 
@@ -712,7 +743,17 @@
           </svg>
         </button></p>
         <button class="btn-secondary" id="getRecoveryCodeBtn" style="display:none;margin-top:14px;">Get a recovery code</button>
-        <p id="recoveryCodeSetNotice" style="display:none;font-size:12px;color:var(--text-dim);margin-top:14px;">&#10003; Recovery code is set</p>
+        <div id="recoveryCodeSetNotice" style="display:none;margin-top:14px;text-align:center;">
+          <p style="font-size:12px;color:var(--text-dim);margin-bottom:6px;">&#10003; Recovery code is set</p>
+          <a href="#" id="regenerateRecoveryLink" style="font-size:11px;color:var(--text-dim);text-decoration:underline;">Never saved it? Get a new one</a>
+        </div>
+        <div class="danger-confirm" id="regenerateConfirmRow" style="display:none;margin-top:10px;">
+          <p class="danger-confirm-text">This replaces your current code — if you (or anyone) saved the old one, it will stop working. Only do this if you need a fresh code.</p>
+          <div class="danger-confirm-buttons">
+            <button class="btn-secondary" id="cancelRegenerateBtn">Cancel</button>
+            <button class="danger-btn-confirm" id="confirmRegenerateBtn">Yes, get a new code</button>
+          </div>
+        </div>
       </div>
       <button class="danger-btn" id="deleteProfileBtn">Delete profile &amp; reset</button>
       <div class="danger-confirm" id="deleteConfirmRow" style="display:none;">
@@ -732,15 +773,6 @@
       </div>
       <div class="me-name" id="meName">Your name</div>
       <div class="me-location" id="meLocation">Set your location below</div>
-    </div>
-
-    <div class="sheet-overlay" id="photoActionOverlay">
-      <div class="sheet">
-        <h2>Profile photo</h2>
-        <button class="btn-primary" id="changePhotoBtn" style="margin-top:0;">Change photo</button>
-        <button class="danger-btn" id="removePhotoBtn" style="display:none;">Remove photo</button>
-        <button class="btn-secondary" id="cancelPhotoActionBtn">Cancel</button>
-      </div>
     </div>
 
     <div class="status-toggle-wrap" id="statusToggleWrap">
@@ -799,6 +831,15 @@
     </svg>
     Me
   </button>
+</div>
+
+<div class="sheet-overlay" id="photoActionOverlay">
+  <div class="sheet">
+    <h2>Profile photo</h2>
+    <button class="btn-primary" id="changePhotoBtn" style="margin-top:0;">Change photo</button>
+    <button class="danger-btn" id="removePhotoBtn" style="display:none;">Remove photo</button>
+    <button class="btn-secondary" id="cancelPhotoActionBtn">Cancel</button>
+  </div>
 </div>
 
 <div class="sheet-overlay" id="addSheetOverlay">
@@ -1016,6 +1057,12 @@
 
   function apiGenerateRecoveryCode(profileId) {
     return fetch(API_BASE + '/api/profile/' + encodeURIComponent(profileId) + '/generate-recovery-code', {
+      method: 'POST'
+    }).then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); });
+  }
+
+  function apiRegenerateRecoveryCode(profileId) {
+    return fetch(API_BASE + '/api/profile/' + encodeURIComponent(profileId) + '/regenerate-recovery-code', {
       method: 'POST'
     }).then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); });
   }
@@ -2098,6 +2145,31 @@
     });
   });
 
+  document.getElementById('regenerateRecoveryLink').addEventListener('click', function(e) {
+    e.preventDefault();
+    document.getElementById('regenerateConfirmRow').style.display = 'block';
+  });
+  document.getElementById('cancelRegenerateBtn').addEventListener('click', function() {
+    document.getElementById('regenerateConfirmRow').style.display = 'none';
+  });
+  document.getElementById('confirmRegenerateBtn').addEventListener('click', function() {
+    var btn = this;
+    if (!myProfile) return;
+    btn.disabled = true;
+    btn.textContent = 'Generating…';
+    apiRegenerateRecoveryCode(myProfile.id).then(function(res) {
+      if (!res.ok) {
+        setMeSaveStatus(res.body.error || 'Failed to generate a new code.', true);
+        return;
+      }
+      document.getElementById('regenerateConfirmRow').style.display = 'none';
+      showRecoveryCodeSheet(res.body.recovery_code);
+    }).finally(function() {
+      btn.disabled = false;
+      btn.textContent = 'Yes, get a new code';
+    });
+  });
+
   document.getElementById('copyRecoveryCodeBtn').addEventListener('click', function() {
     var btn = this;
     var code = document.getElementById('recoveryCodeDisplay').textContent;
@@ -2342,8 +2414,8 @@
 
   // Pull-to-refresh on the Circle (Friends) tab — pull down from the top to
   // re-fetch your own profile + all friends' latest data.
-  function setupPullToRefresh(screenId, indicatorId, iconId, onRefresh) {
-    var screen = document.getElementById(screenId);
+  function setupPullToRefresh(scrollAreaId, indicatorId, iconId, onRefresh) {
+    var scrollArea = document.getElementById(scrollAreaId);
     var indicator = document.getElementById(indicatorId);
     var icon = document.getElementById(iconId);
     var threshold = 70; // px of pull needed to trigger a refresh
@@ -2364,16 +2436,16 @@
       });
     }
 
-    screen.addEventListener('touchstart', function(e) {
-      // Only start tracking a pull if the screen is already scrolled to the top —
+    scrollArea.addEventListener('touchstart', function(e) {
+      // Only start tracking a pull if the list is already scrolled to the top —
       // otherwise this would interfere with normal scrolling further down the list.
-      if (screen.scrollTop <= 0 && !refreshing) {
+      if (scrollArea.scrollTop <= 0 && !refreshing) {
         startY = e.touches[0].clientY;
         pulling = true;
       }
     }, { passive: true });
 
-    screen.addEventListener('touchmove', function(e) {
+    scrollArea.addEventListener('touchmove', function(e) {
       if (!pulling || refreshing) return;
       var dy = e.touches[0].clientY - startY;
       if (dy > 0) {
@@ -2382,7 +2454,7 @@
       }
     }, { passive: true });
 
-    screen.addEventListener('touchend', function() {
+    scrollArea.addEventListener('touchend', function() {
       if (!pulling) return;
       pulling = false;
       var currentHeight = parseInt(indicator.style.height || '0', 10);
@@ -2395,7 +2467,7 @@
     });
   }
 
-  setupPullToRefresh('friendsScreen', 'pullRefreshIndicator', 'pullRefreshIcon', function() {
+  setupPullToRefresh('friendsScrollArea', 'pullRefreshIndicator', 'pullRefreshIcon', function() {
     var profileRefresh = myProfile
       ? apiGetProfile(myProfile.id, myProfile.id).then(function(res) { if (res.ok) myProfile = res.body; })
       : Promise.resolve();
@@ -2405,7 +2477,7 @@
     });
   });
 
-  setupPullToRefresh('globeScreen', 'atlasPullRefreshIndicator', 'atlasPullRefreshIcon', function() {
+  setupPullToRefresh('atlasScrollArea', 'atlasPullRefreshIndicator', 'atlasPullRefreshIcon', function() {
     return Promise.resolve(loadMyFriends()); // loadMyFriends already rebuilds globe pins when the globe is initialized
   });
 
