@@ -94,9 +94,6 @@
     overflow-y: auto; /* fits without scrolling on normal screens; gracefully scrollable rather than clipped on very small ones */
     -webkit-overflow-scrolling: touch;
   }
-  #meScreen .me-menu-panel.open {
-    overflow-y: auto; /* the expanded menu panel itself can scroll internally if its content is tall, without affecting the rest of the tab */
-  }
 
   /* Circle & Atlas tabs: a fixed (non-scrolling) header/controls area, with
      only the list of people below it scrolling independently. */
@@ -111,6 +108,13 @@
     flex: 1;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* old Edge/IE */
+  }
+  .scrollable-list-area::-webkit-scrollbar {
+    display: none; /* Safari/Chrome */
+    width: 0;
+    height: 0;
   }
 
   .app {
@@ -448,14 +452,17 @@
   .field input:focus, .field select:focus { border-color: var(--accent-day); }
 
   .me-menu-panel {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.3s ease, margin-bottom 0.3s ease;
+    display: none;
     margin-bottom: 0;
   }
   .me-menu-panel.open {
-    max-height: 600px;
+    display: block;
     margin-bottom: 20px;
+    animation: menu-panel-fade-in 0.2s ease;
+  }
+  @keyframes menu-panel-fade-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
   }
   .me-menu-row {
     display: flex;
@@ -806,6 +813,7 @@
     <p style="text-align:center;margin-top:14px;">
       <a href="#" id="openRestoreLink" style="font-size:12px;color:var(--text-dim);text-decoration:underline;">Already have a profile? Restore it on this device</a>
     </p>
+    <div style="flex-shrink:0;height:24px;" aria-hidden="true"></div>
   </div>
 </div>
 </div>
@@ -1437,7 +1445,10 @@
       if (!dragging) return;
 
       if (longPressFired) {
-        e.preventDefault(); // block page scroll while actively dragging a card to reorder
+        // touch-action: none (set in startFriendDrag) already blocks native
+        // scroll during an active drag-reorder — no preventDefault() needed
+        // here, which lets this listener stay passive and keeps scrolling
+        // smooth for every other card that isn't currently being dragged.
         updateFriendDrag(e.touches[0].clientY);
         return;
       }
@@ -1458,7 +1469,7 @@
 
       currentX = Math.min(0, Math.max(dx, -SWIPE_ACTION_WIDTH - 20));
       strip.style.transform = 'translateX(' + currentX + 'px)';
-    }, { passive: false });
+    }, { passive: true });
 
     strip.addEventListener('touchend', function() {
       clearTimeout(longPressTimer);
@@ -1506,6 +1517,8 @@
       currentIndex: siblings.indexOf(wrap)
     };
     wrap.classList.add('drag-active');
+    var strip = wrap.querySelector('.friend-strip');
+    if (strip) strip.style.touchAction = 'none'; // block native scroll only while this specific card is being dragged
   }
 
   function updateFriendDrag(clientY) {
@@ -1547,6 +1560,9 @@
     wrap.style.transition = 'transform 0.2s ease';
     wrap.style.transform = '';
     setTimeout(function() { wrap.style.transition = ''; }, 200);
+
+    var strip = wrap.querySelector('.friend-strip');
+    if (strip) strip.style.touchAction = 'pan-y'; // restore normal vertical scrolling for this card
 
     // Persist the new order based on current DOM order of friend-id data attributes.
     var list = document.getElementById('friendList');
@@ -2495,7 +2511,7 @@
   var globeScene, globeCamera, globeRenderer, globeSphere, globeGroup, pinGroup;
   var GLOBE_DEFAULT_ROT_X = 0.3;
   var GLOBE_DEFAULT_CAMERA_Z = 2.6;
-  var GLOBE_MIN_ZOOM = 1.3, GLOBE_MAX_ZOOM = 5.5;
+  var GLOBE_MIN_ZOOM = 1.75, GLOBE_MAX_ZOOM = 5.5; // 1.75 keeps enough clearance from pin avatars (which float at radius 1.16) that zooming all the way in never lets a pin fill the whole frame
   var globeRotY = 0, globeRotX = GLOBE_DEFAULT_ROT_X;
   var globeCameraZ = GLOBE_DEFAULT_CAMERA_Z;
   var isDragging = false, lastPointerX = 0, lastPointerY = 0;
