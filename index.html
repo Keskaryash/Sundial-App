@@ -62,8 +62,10 @@
     background: var(--bg-deep);
     color: var(--text-warm);
     font-family: var(--font-main);
-    min-height: 100vh;
-    overflow-x: hidden;
+    height: 100%;
+    width: 100%;
+    overflow: hidden; /* the page itself never scrolls — only .scrollable-list-area does, intentionally */
+    position: fixed; /* belt-and-suspenders against iOS Safari's rubber-band bounce, which overflow:hidden alone doesn't always fully stop */
     -webkit-font-smoothing: antialiased;
   }
 
@@ -510,8 +512,9 @@
   .request-row:last-child { border-bottom: none; }
   .request-row .req-name { flex: 1; font-size: 14px; font-weight: 600; color: var(--text-warm); }
   .request-row button { border: none; border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
-  .request-row .approve-btn { background: #6FCF97; color: #0B2818; margin-right: 6px; }
-  .request-row .deny-btn { background: var(--bg-card-border); color: var(--text-dim); }
+  .request-row .approve-btn { background: #6FCF97; color: #0B2818; margin-right: 6px; transition: transform 0.1s ease; }
+  .request-row .deny-btn { background: var(--bg-card-border); color: var(--text-dim); transition: transform 0.1s ease; }
+  .request-row .approve-btn:active, .request-row .deny-btn:active { transform: scale(0.93); }
 
   .qr-section { text-align: center; padding: 20px 16px; background: var(--bg-card-soft); border: 1px solid var(--bg-card-border); border-radius: 14px; }
   .qr-section h3 { font-size: 14px; font-weight: 600; color: var(--text-dim); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -713,10 +716,23 @@
   <div class="app">
     <header class="top">
       <h1>Me</h1>
-      <button class="add-btn" id="meMenuBtn" title="Menu" style="position:relative;">
-        &#8942;
-        <span class="menu-badge" id="meMenuBadge" style="display:none;"></span>
-      </button>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <button class="add-btn" id="meQrBtn" title="Your code">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+            <path d="M14 14h3v3h-3z"/>
+            <path d="M14 20h3"/>
+            <path d="M20 14v3"/>
+            <path d="M20 20h1"/>
+          </svg>
+        </button>
+        <button class="add-btn" id="meMenuBtn" title="Menu" style="position:relative;">
+          &#8942;
+          <span class="menu-badge" id="meMenuBadge" style="display:none;"></span>
+        </button>
+      </div>
     </header>
 
     <div class="me-menu-panel" id="meMenuPanel">
@@ -737,28 +753,6 @@
       <div class="requests-section" id="requestsSection" style="display:none;">
         <h3>Requests <span id="requestsCount" class="requests-count-badge"></span></h3>
         <div id="requestsList"></div>
-      </div>
-      <div class="qr-section">
-        <h3>Your code</h3>
-        <div id="qr-canvas-wrap"></div>
-        <p class="share-id">ID: <strong id="meIdDisplay">&mdash;</strong> <button class="copy-id-btn" id="copyIdBtn" title="Copy ID">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;">
-            <rect x="8.5" y="8.5" width="11" height="11" rx="2"/>
-            <path d="M5.5 15.5h-1A2 2 0 0 1 2.5 13.5v-9A2 2 0 0 1 4.5 2.5h9a2 2 0 0 1 2 2v1"/>
-          </svg>
-        </button></p>
-        <button class="btn-secondary" id="getRecoveryCodeBtn" style="display:none;margin-top:14px;">Get a recovery code</button>
-        <div id="recoveryCodeSetNotice" style="display:none;margin-top:14px;text-align:center;">
-          <p style="font-size:12px;color:var(--text-dim);margin-bottom:6px;">&#10003; Recovery code is set</p>
-          <a href="#" id="regenerateRecoveryLink" style="font-size:11px;color:var(--text-dim);text-decoration:underline;">Never saved it? Get a new one</a>
-        </div>
-        <div class="danger-confirm" id="regenerateConfirmRow" style="display:none;margin-top:10px;">
-          <p class="danger-confirm-text">This replaces your current code — if you (or anyone) saved the old one, it will stop working. Only do this if you need a fresh code.</p>
-          <div class="danger-confirm-buttons">
-            <button class="btn-secondary" id="cancelRegenerateBtn">Cancel</button>
-            <button class="danger-btn-confirm" id="confirmRegenerateBtn">Yes, get a new code</button>
-          </div>
-        </div>
       </div>
       <button class="danger-btn" id="deleteProfileBtn">Delete profile &amp; reset</button>
       <div class="danger-confirm" id="deleteConfirmRow" style="display:none;">
@@ -897,6 +891,34 @@
   </div>
 </div>
 
+<div class="sheet-overlay" id="myCodeOverlay">
+  <div class="sheet">
+    <h2>Your code</h2>
+    <div class="qr-section" style="background:none;border:none;padding:0;">
+      <div id="qr-canvas-wrap"></div>
+      <p class="share-id">ID: <strong id="meIdDisplay">&mdash;</strong> <button class="copy-id-btn" id="copyIdBtn" title="Copy ID">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;vertical-align:-2px;">
+          <rect x="8.5" y="8.5" width="11" height="11" rx="2"/>
+          <path d="M5.5 15.5h-1A2 2 0 0 1 2.5 13.5v-9A2 2 0 0 1 4.5 2.5h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+      </button></p>
+      <button class="btn-secondary" id="getRecoveryCodeBtn" style="display:none;margin-top:14px;">Get a recovery code</button>
+      <div id="recoveryCodeSetNotice" style="display:none;margin-top:14px;text-align:center;">
+        <p style="font-size:12px;color:var(--text-dim);margin-bottom:6px;">&#10003; Recovery code is set</p>
+        <a href="#" id="regenerateRecoveryLink" style="font-size:11px;color:var(--text-dim);text-decoration:underline;">Never saved it? Get a new one</a>
+      </div>
+      <div class="danger-confirm" id="regenerateConfirmRow" style="display:none;margin-top:10px;">
+        <p class="danger-confirm-text">This replaces your current code — if you (or anyone) saved the old one, it will stop working. Only do this if you need a fresh code.</p>
+        <div class="danger-confirm-buttons">
+          <button class="btn-secondary" id="cancelRegenerateBtn">Cancel</button>
+          <button class="danger-btn-confirm" id="confirmRegenerateBtn">Yes, get a new code</button>
+        </div>
+      </div>
+    </div>
+    <button class="btn-secondary" id="closeMyCodeBtn" style="margin-top:16px;">Close</button>
+  </div>
+</div>
+
 <div class="sheet-overlay" id="recoveryCodeOverlay">
   <div class="sheet">
     <h2>Save your recovery code</h2>
@@ -938,6 +960,15 @@
   // re-fetch or re-inject the tag. Used to keep Three.js (~500KB+) and
   // jsQR out of the initial page load entirely — they're only fetched the
   // first time the globe or QR scanner actually opens.
+  // Escapes text for safe insertion into innerHTML — used anywhere a name or
+  // other user-controlled string gets embedded in markup, so someone can't
+  // inject HTML/script content via their display name.
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str == null ? '' : String(str);
+    return div.innerHTML;
+  }
+
   var __scriptLoadPromises = {};
   function loadScriptOnce(url) {
     if (__scriptLoadPromises[url]) return __scriptLoadPromises[url];
@@ -1007,7 +1038,7 @@
     var SWIPE_COMMIT_RATIO = 0.18; // fraction of screen width to commit to changing tabs
 
     function isBlankSpaceTarget(target) {
-      var blockedSelectors = '.friend-swipe-wrap, .time-slider, button, input, a, .me-avatar-wrap, #globeContainer, .sheet-overlay';
+      var blockedSelectors = '.friend-swipe-wrap, .time-slider, button, input, a, .me-avatar-wrap, #globeContainer, .sheet-overlay, .scrollable-list-area';
       return !target.closest(blockedSelectors);
     }
 
@@ -1131,6 +1162,14 @@
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ requester_id: requesterId, target_id: targetId, nickname: nickname || '' })
+    }).then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); });
+  }
+
+  function apiAddBackFriend(requesterId, targetId) {
+    return fetch(API_BASE + '/api/friend-request/add-back', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requester_id: requesterId, target_id: targetId })
     }).then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); });
   }
 
@@ -1895,6 +1934,13 @@
     if (panel.classList.contains('open')) loadIncomingRequests(); // check immediately rather than waiting for the next poll tick
   });
 
+  document.getElementById('meQrBtn').addEventListener('click', function() {
+    document.getElementById('myCodeOverlay').classList.add('open');
+  });
+  document.getElementById('closeMyCodeBtn').addEventListener('click', function() {
+    document.getElementById('myCodeOverlay').classList.remove('open');
+  });
+
   function updateThemeButtons() {
     var theme = getTheme();
     document.getElementById('themeDarkBtn').classList.toggle('active', theme === 'dark');
@@ -2430,24 +2476,120 @@
       requests.forEach(function(r) {
         var row = document.createElement('div');
         row.className = 'request-row';
+        row.dataset.requesterId = r.requester_id;
         row.innerHTML =
-          '<span class="req-name">' + (r.requester_name || 'Someone') + '</span>' +
+          '<span class="req-name">' + escapeHtml(r.requester_name || 'Someone') + '</span>' +
           '<button class="approve-btn" data-id="' + r.id + '" data-action="approve">Approve</button>' +
           '<button class="deny-btn" data-id="' + r.id + '" data-action="deny">Deny</button>';
         listEl.appendChild(row);
       });
 
-      listEl.querySelectorAll('button').forEach(function(btn) {
+      listEl.querySelectorAll('.approve-btn, .deny-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
           var requestId = btn.dataset.id;
           var action = btn.dataset.action;
+          var row = btn.closest('.request-row');
+          var requesterId = row ? row.dataset.requesterId : null;
+          var requesterName = row ? row.querySelector('.req-name').textContent : 'them';
+
+          if (action === 'deny') {
+            // Deny still removes the row right away — nothing further to offer here.
+            if (row) {
+              row.style.transition = 'opacity 0.15s ease, transform 0.15s ease';
+              row.style.opacity = '0';
+              row.style.transform = 'scale(0.97)';
+            }
+            updateRequestsBadgeCount(-1);
+            apiRespondToRequest(requestId, myProfile.id, action).catch(function() {});
+            setTimeout(function() {
+              if (row && row.parentNode) row.parentNode.removeChild(row);
+            }, 150);
+            return;
+          }
+
+          // Approve: morph the row in place into an "add them back?" prompt,
+          // rather than removing it — approving only lets THEM see YOU; it
+          // doesn't put them in your own Circle, so offer that as a one-tap
+          // follow-up, the same instant the approval itself is confirmed.
+          updateRequestsBadgeCount(-1);
           btn.disabled = true;
+          row.querySelector('.deny-btn').disabled = true;
+
           apiRespondToRequest(requestId, myProfile.id, action).then(function(res) {
-            if (res.ok) loadIncomingRequests();
+            if (!res.ok || !row) { loadIncomingRequests(); return; }
+            row.innerHTML =
+              '<span class="req-name">Add ' + escapeHtml(requesterName) + ' back?</span>' +
+              '<button class="approve-btn add-back-btn" data-requester-id="' + escapeHtml(requesterId) + '" data-name="' + escapeHtml(requesterName) + '">Add back</button>' +
+              '<button class="deny-btn dismiss-addback-btn">Not now</button>';
+            wireAddBackRow(row);
+          }).catch(function() {
+            loadIncomingRequests();
           });
         });
       });
+
+      listEl.querySelectorAll('.dismiss-addback-btn, .add-back-btn').forEach(wireAddBackRowButtons);
     });
+  }
+
+  function wireAddBackRow(row) {
+    row.querySelectorAll('.dismiss-addback-btn, .add-back-btn').forEach(wireAddBackRowButtons);
+  }
+
+  function wireAddBackRowButtons(btn) {
+    btn.addEventListener('click', function() {
+      var row = btn.closest('.request-row');
+      if (btn.classList.contains('dismiss-addback-btn')) {
+        if (row) {
+          row.style.transition = 'opacity 0.15s ease, transform 0.15s ease';
+          row.style.opacity = '0';
+          row.style.transform = 'scale(0.97)';
+        }
+        setTimeout(function() {
+          if (row && row.parentNode) row.parentNode.removeChild(row);
+        }, 150);
+        return;
+      }
+
+      // "Add back" — auto-approved on the backend since the reverse
+      // direction (their request to us) is already approved.
+      btn.disabled = true;
+      btn.textContent = 'Adding…';
+      var targetId = btn.dataset.requesterId;
+      var name = btn.dataset.name;
+
+      apiAddBackFriend(myProfile.id, targetId).then(function(res) {
+        if (!res.ok) {
+          btn.disabled = false;
+          btn.textContent = 'Add back';
+          return;
+        }
+        addMyFriend(targetId, ''); // local cache, instant UI feedback
+        loadMyFriends();
+        if (row) {
+          row.style.transition = 'opacity 0.15s ease, transform 0.15s ease';
+          row.style.opacity = '0';
+          row.style.transform = 'scale(0.97)';
+        }
+        setTimeout(function() {
+          if (row && row.parentNode) row.parentNode.removeChild(row);
+        }, 150);
+      }).catch(function() {
+        btn.disabled = false;
+        btn.textContent = 'Add back';
+      });
+    });
+  }
+
+  function updateRequestsBadgeCount(delta) {
+    var badge = document.getElementById('meMenuBadge');
+    var current = parseInt(badge.textContent || '0', 10) || 0;
+    var next = Math.max(0, current + delta);
+    if (next === 0) {
+      badge.style.display = 'none';
+    } else {
+      badge.textContent = next;
+    }
   }
 
   var loadMyFriendsBackfillAttempted = false;
