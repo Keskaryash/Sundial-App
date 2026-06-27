@@ -970,6 +970,9 @@
     document.querySelector('[data-screen="' + screenId + '"]').classList.add('active');
     document.getElementById(screenId).classList.add('active');
     if (screenId === 'globeScreen') initGlobeIfNeeded();
+    if (screenId === 'friendsScreen' && typeof myProfile !== 'undefined' && myProfile) {
+      loadMyFriends(); // check immediately on switching tabs rather than waiting for the next poll tick
+    }
   }
 
   function switchToScreen(screenId) {
@@ -1340,6 +1343,15 @@
   }
 
   function renderFriends() {
+    if (dragState) {
+      // A drag-reorder is actively in progress — rebuilding the list now
+      // would detach the very element the user is dragging mid-gesture
+      // (it'd still move on screen, but as a stale node no longer part of
+      // the real list), which is what caused friends to visually duplicate.
+      // Defer this render until the drag finishes; endFriendDrag re-renders.
+      renderFriendsPending = true;
+      return;
+    }
     updateMyTimeDisplay();
     var list = document.getElementById('friendList');
     list.innerHTML = '';
@@ -1451,6 +1463,7 @@
 
   var LONG_PRESS_MS = 450;
   var dragState = null; // set while a drag-reorder is in progress
+  var renderFriendsPending = false; // true if a render was skipped during a drag and needs to run once the drag ends
 
   function bindFriendSwipe(wrap, strip, friend) {
     var startX = 0, startY = 0, currentX = 0, dragging = false, decided = false, isHorizontal = false;
@@ -1525,6 +1538,16 @@
         strip.style.transform = 'translateX(0)';
         if (openSwipeWrap === wrap) openSwipeWrap = null;
       }
+    });
+
+    // Safety net: if the gesture is interrupted (incoming call, app backgrounded
+    // mid-touch, etc.) without a normal touchend, make sure an active drag still
+    // ends cleanly — otherwise dragState would stay set forever and permanently
+    // block the friend list from ever re-rendering.
+    strip.addEventListener('touchcancel', function() {
+      clearTimeout(longPressTimer);
+      if (dragging && longPressFired) endFriendDrag();
+      dragging = false;
     });
 
     wrap.querySelector('[data-action="edit"]').addEventListener('click', function() {
@@ -1608,6 +1631,11 @@
     reorderFriends(newOrderIds);
 
     dragState = null;
+
+    if (renderFriendsPending) {
+      renderFriendsPending = false;
+      renderFriends(); // catch up on any render(s) that were skipped mid-drag
+    }
   }
 
   var nicknameEditTarget = null;
@@ -1862,7 +1890,9 @@
   var meSelectedStatus = 'available';
 
   document.getElementById('meMenuBtn').addEventListener('click', function() {
-    document.getElementById('meMenuPanel').classList.toggle('open');
+    var panel = document.getElementById('meMenuPanel');
+    panel.classList.toggle('open');
+    if (panel.classList.contains('open')) loadIncomingRequests(); // check immediately rather than waiting for the next poll tick
   });
 
   function updateThemeButtons() {
@@ -2342,7 +2372,7 @@
       return;
     }
     apiGetProfile(id, id).then(function(res) {
-      if (!res.ok) return; // profile may have been wiped if backend DB was recreated
+      if (!res.ok) return; // profile may have been wiped if backend DB was recreated — not retried, since this is a legitimate permanent state, not a transient failure
       myProfile = res.body;
       document.getElementById('meNameInput').value = myProfile.name || '';
       document.getElementById('meCityInput').value = myProfile.city_name || '';
@@ -2361,6 +2391,11 @@
       if (globeInitialized && window.__rebuildGlobePins) window.__rebuildGlobePins();
       loadIncomingRequests();
       loadMyFriends(); // now that myProfile is known, fetch friends with the correct viewer identity
+    }).catch(function() {
+      // fetch() itself failed (network error, timeout, backend cold-starting) —
+      // retry shortly rather than leaving the app permanently stuck with no
+      // profile loaded (which would also mean friends never load either).
+      setTimeout(loadMyProfileIfExists, 3000);
     });
   }
 
@@ -2438,7 +2473,14 @@
       apiListOutgoingRequests(myProfile.id)
     ]).then(function(results) {
       var batchRes = results[0], outgoingRes = results[1];
-      if (!batchRes.ok) return;
+      if (!batchRes.ok) {
+        // The request itself reached the server but it returned an error
+        // status — retry shortly rather than leaving the list empty until
+        // someone notices and manually pulls to refresh. Common cause: the
+        // backend was still cold-starting and briefly returned an error.
+        setTimeout(loadMyFriends, 3000);
+        return;
+      }
 
       var statusByTargetId = {};
       var requestByTargetId = {};
@@ -2501,6 +2543,12 @@
         renderGlobeFriendList();
         if (window.__rebuildGlobePins) window.__rebuildGlobePins();
       }
+    }).catch(function() {
+      // fetch() itself failed (network error, timeout, backend cold-starting,
+      // etc.) — without this, the unhandled rejection would silently leave
+      // the friend list empty forever until a manual pull-to-refresh, since
+      // nothing else would retry. Retry shortly instead.
+      setTimeout(loadMyFriends, 3000);
     });
   }
 
@@ -2575,14 +2623,17 @@
     return Promise.resolve(loadMyFriends()); // loadMyFriends already rebuilds globe pins when the globe is initialized
   });
 
-  // Auto-refresh friends' data periodically so statuses/locations don't go stale
-  // while the app is left open in the background.
+  // Friend requests AND general friend data (status/location/time) are both
+  // polled on this single fast interval, regardless of which tab is open.
+  // People are actively waiting on this — a pending request becoming
+  // approved, a newly-added friend appearing, status changes — so this runs
+  // frequently rather than the old 60s-only-on-Circle-tab cadence that could
+  // leave someone waiting up to a minute even while staring at the screen.
   setInterval(function() {
-    if (document.getElementById('friendsScreen').classList.contains('active')) {
-      loadMyFriends();
-      loadIncomingRequests();
-    }
-  }, 60000); // every 60 seconds
+    if (!myProfile) return;
+    loadIncomingRequests();
+    loadMyFriends(); // also picks up newly-approved outgoing requests and newly-added friends
+  }, 8000); // every 8 seconds
 
   // ===== GLOBE: real Three.js implementation =====
   var globeInitialized = false;
