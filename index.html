@@ -711,6 +711,8 @@
             <path d="M5.5 15.5h-1A2 2 0 0 1 2.5 13.5v-9A2 2 0 0 1 4.5 2.5h9a2 2 0 0 1 2 2v1"/>
           </svg>
         </button></p>
+        <button class="btn-secondary" id="getRecoveryCodeBtn" style="display:none;margin-top:14px;">Get a recovery code</button>
+        <p id="recoveryCodeSetNotice" style="display:none;font-size:12px;color:var(--text-dim);margin-top:14px;">&#10003; Recovery code is set</p>
       </div>
       <button class="danger-btn" id="deleteProfileBtn">Delete profile &amp; reset</button>
       <div class="danger-confirm" id="deleteConfirmRow" style="display:none;">
@@ -1012,6 +1014,12 @@
     }).then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); });
   }
 
+  function apiGenerateRecoveryCode(profileId) {
+    return fetch(API_BASE + '/api/profile/' + encodeURIComponent(profileId) + '/generate-recovery-code', {
+      method: 'POST'
+    }).then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); });
+  }
+
   function apiUpdateProfile(id, data) {
     return fetch(API_BASE + '/api/profile/' + encodeURIComponent(id), {
       method: 'PATCH',
@@ -1047,6 +1055,15 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ requester_id: requesterId, target_id: targetId })
     }).then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); });
+  }
+
+  function apiBackfillLegacyFriendship(profileIdA, profileIdB) {
+    return fetch(API_BASE + '/api/friend-request/backfill-legacy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile_id_a: profileIdA, profile_id_b: profileIdB })
+    }).then(function(r) { return r.json().then(function(body) { return { ok: r.ok, body: body }; }); })
+      .catch(function() { return { ok: false, body: {} }; }); // never let one failed backfill block the retry
   }
 
   function apiListIncomingRequests(targetId) {
@@ -2062,6 +2079,25 @@
     document.getElementById('recoveryCodeOverlay').classList.add('open');
   }
 
+  document.getElementById('getRecoveryCodeBtn').addEventListener('click', function() {
+    var btn = this;
+    if (!myProfile) return;
+    btn.disabled = true;
+    btn.textContent = 'Generating…';
+    apiGenerateRecoveryCode(myProfile.id).then(function(res) {
+      if (!res.ok) {
+        setMeSaveStatus(res.body.error || 'Failed to generate a recovery code.', true);
+        return;
+      }
+      myProfile.has_recovery_code = true;
+      updateRecoveryCodeMenuSection();
+      showRecoveryCodeSheet(res.body.recovery_code);
+    }).finally(function() {
+      btn.disabled = false;
+      btn.textContent = 'Get a recovery code';
+    });
+  });
+
   document.getElementById('copyRecoveryCodeBtn').addEventListener('click', function() {
     var btn = this;
     var code = document.getElementById('recoveryCodeDisplay').textContent;
@@ -2166,10 +2202,17 @@
       renderMeAvatar();
       document.getElementById('meIdDisplay').textContent = myProfile.id;
       renderMyQrCode(myProfile.id);
+      updateRecoveryCodeMenuSection();
       if (globeInitialized && window.__rebuildGlobePins) window.__rebuildGlobePins();
       loadIncomingRequests();
       loadMyFriends(); // now that myProfile is known, fetch friends with the correct viewer identity
     });
+  }
+
+  function updateRecoveryCodeMenuSection() {
+    var hasCode = myProfile && myProfile.has_recovery_code;
+    document.getElementById('getRecoveryCodeBtn').style.display = hasCode ? 'none' : 'block';
+    document.getElementById('recoveryCodeSetNotice').style.display = hasCode ? 'block' : 'none';
   }
 
   function loadIncomingRequests() {
@@ -2217,6 +2260,7 @@
     });
   }
 
+  var loadMyFriendsBackfillAttempted = false;
   function loadMyFriends() {
     var friendEntries = getMyFriends();
     if (friendEntries.length === 0) {
@@ -2248,6 +2292,7 @@
 
       var approvedFriends = [];
       var pendingFriends = [];
+      var legacyIdsNeedingBackfill = [];
 
       ids.forEach(function(id, i) {
         var profile = batchRes.body.profiles[i];
@@ -2262,11 +2307,26 @@
               nickname: nicknameById[id] || '',
               pending: true
             });
+          } else if (!reqStatus) {
+            // No request record at all — this friendship predates the
+            // approval system. Queue it for a one-time automatic backfill
+            // rather than silently dropping it.
+            legacyIdsNeedingBackfill.push(id);
           }
-          // If denied or unknown, we simply don't show them — same as before,
-          // a quietly-missing entry rather than a harsh "denied" notice.
+          // If explicitly denied, we simply don't show them — a quietly
+          // missing entry rather than a harsh "denied" notice.
         }
       });
+
+      if (legacyIdsNeedingBackfill.length > 0 && !loadMyFriendsBackfillAttempted) {
+        loadMyFriendsBackfillAttempted = true;
+        Promise.all(legacyIdsNeedingBackfill.map(function(id) {
+          return apiBackfillLegacyFriendship(myProfile.id, id);
+        })).then(function() {
+          loadMyFriends(); // retry now that the backfill should have created approved requests
+        });
+        return; // don't render yet — the retry above will do it with complete data
+      }
 
       realFriends = approvedFriends;
       pendingRequests = pendingFriends;
@@ -2681,6 +2741,20 @@
         globeGroup.rotation.y = globeRotY;
         globeGroup.rotation.x = globeRotX;
         globeCamera.position.z = globeCameraZ;
+
+        // Keep avatar sprite labels a consistent on-screen size regardless of
+        // zoom level — without this, zooming in makes pins balloon up just
+        // like the globe surface does, which loses the surrounding context
+        // the label needs to stay attached-but-readable.
+        var zoomScaleFactor = globeCameraZ / GLOBE_DEFAULT_CAMERA_Z;
+        pinGroup.children.forEach(function(child) {
+          if (child.isSprite) {
+            var baseScale = 0.14;
+            var s = baseScale * zoomScaleFactor;
+            child.scale.set(s, s, 1);
+          }
+        });
+
         globeRenderer.render(globeScene, globeCamera);
         requestAnimationFrame(render);
       }
