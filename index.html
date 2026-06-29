@@ -686,7 +686,10 @@
         <h1>Meridian</h1>
         <span class="app-subtitle">by benchmark inc.</span>
       </div>
-      <button class="add-btn" id="openAddSheet">+</button>
+      <button class="add-btn" id="openAddSheet" style="position:relative;">
+        +
+        <span class="menu-badge" id="addBtnBadge" style="display:none;"></span>
+      </button>
     </header>
 
     <div class="my-time-row" id="myTimeRow" style="display:none;">
@@ -728,9 +731,8 @@
             <path d="M20 20h1"/>
           </svg>
         </button>
-        <button class="add-btn" id="meMenuBtn" title="Menu" style="position:relative;">
+        <button class="add-btn" id="meMenuBtn" title="Menu">
           &#8942;
-          <span class="menu-badge" id="meMenuBadge" style="display:none;"></span>
         </button>
       </div>
     </header>
@@ -749,10 +751,6 @@
           <button class="theme-toggle-btn" id="timeFormat12Btn">12h</button>
           <button class="theme-toggle-btn" id="timeFormat24Btn">24h</button>
         </div>
-      </div>
-      <div class="requests-section" id="requestsSection" style="display:none;">
-        <h3>Requests <span id="requestsCount" class="requests-count-badge"></span></h3>
-        <div id="requestsList"></div>
       </div>
       <button class="danger-btn" id="deleteProfileBtn">Delete profile &amp; reset</button>
       <div class="danger-confirm" id="deleteConfirmRow" style="display:none;">
@@ -848,6 +846,7 @@
     <div class="tab-switch">
       <button class="active" id="tabScan">Scan QR</button>
       <button id="tabManual">Enter ID</button>
+      <button id="tabRequests">Requests <span id="addSheetRequestsBadge" class="requests-count-badge" style="display:none;"></span></button>
     </div>
     <div id="scanPane">
       <video id="scanner-video" autoplay playsinline muted></video>
@@ -864,6 +863,15 @@
       </div>
       <button class="btn-primary" id="manualAddBtn">Add friend</button>
       <p class="error-text" id="manualError"></p>
+    </div>
+    <div id="requestsPane" style="display:none;max-height:50vh;overflow-y:auto;">
+      <h3 style="font-size:13px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;">Waiting for your approval</h3>
+      <div id="requestsList"></div>
+      <p id="noRequestsMsg" style="display:none;font-size:13px;color:var(--text-dim);padding:8px 0;">No pending requests</p>
+
+      <h3 style="font-size:13px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;margin:18px 0 8px;">Requests you've sent</h3>
+      <div id="outgoingRequestsList"></div>
+      <p id="noOutgoingRequestsMsg" style="display:none;font-size:13px;color:var(--text-dim);padding:8px 0;">No outgoing requests</p>
     </div>
     <button class="btn-secondary" id="closeAddSheet">Cancel</button>
   </div>
@@ -1224,9 +1232,29 @@
     localStorage.setItem('sundial_my_id', id);
   }
   function getMyFriends() {
+    var friends;
     try {
-      return JSON.parse(localStorage.getItem('sundial_friends') || '[]');
-    } catch (e) { return []; }
+      friends = JSON.parse(localStorage.getItem('sundial_friends') || '[]');
+    } catch (e) {
+      return [];
+    }
+
+    // Self-heal: silently strip any duplicate ids that may have ended up
+    // saved (e.g. from a past version's reorder bug) the moment we notice
+    // them, rather than requiring a manual fix or special migration step.
+    var seen = {};
+    var deduped = [];
+    var foundDuplicate = false;
+    friends.forEach(function(f) {
+      if (!f || !f.id) return;
+      if (seen[f.id]) { foundDuplicate = true; return; }
+      seen[f.id] = true;
+      deduped.push(f);
+    });
+    if (foundDuplicate) {
+      localStorage.setItem('sundial_friends', JSON.stringify(deduped));
+    }
+    return deduped;
   }
   function setMyFriends(list) {
     localStorage.setItem('sundial_friends', JSON.stringify(list));
@@ -1253,7 +1281,27 @@
     var friends = getMyFriends();
     var byId = {};
     friends.forEach(function(f) { byId[f.id] = f; });
-    var reordered = newOrderIds.map(function(id) { return byId[id]; }).filter(Boolean);
+
+    // Hard guarantee against ever persisting a duplicated order, regardless
+    // of what upstream DOM/timing issue might have produced a newOrderIds
+    // array with the same id appearing twice — without this, such a bug
+    // would corrupt local storage permanently, surviving reloads, rather
+    // than just being a transient rendering glitch.
+    var seen = {};
+    var reordered = [];
+    newOrderIds.forEach(function(id) {
+      if (seen[id] || !byId[id]) return;
+      seen[id] = true;
+      reordered.push(byId[id]);
+    });
+
+    // Any friend missing from newOrderIds (shouldn't normally happen, but
+    // protects against silently losing someone if the DOM read missed them)
+    // gets appended at the end rather than disappearing.
+    friends.forEach(function(f) {
+      if (!seen[f.id]) reordered.push(f);
+    });
+
     setMyFriends(reordered);
   }
 
@@ -1918,7 +1966,12 @@
   document.getElementById('openAddSheet').addEventListener('click', function() {
     document.getElementById('addSheetOverlay').classList.add('open');
     document.getElementById('manualError').classList.remove('show');
-    if (document.getElementById('tabScan').classList.contains('active')) {
+
+    var badge = document.getElementById('addBtnBadge');
+    var hasPendingRequests = badge.style.display !== 'none' && badge.style.display !== '';
+    if (hasPendingRequests) {
+      document.getElementById('tabRequests').click(); // land directly on Requests if there's something waiting for attention
+    } else if (document.getElementById('tabScan').classList.contains('active')) {
       startScanner();
     }
   });
@@ -1929,16 +1982,30 @@
   document.getElementById('tabScan').addEventListener('click', function() {
     document.getElementById('tabScan').classList.add('active');
     document.getElementById('tabManual').classList.remove('active');
+    document.getElementById('tabRequests').classList.remove('active');
     document.getElementById('scanPane').style.display = 'block';
     document.getElementById('manualPane').style.display = 'none';
+    document.getElementById('requestsPane').style.display = 'none';
     startScanner();
   });
   document.getElementById('tabManual').addEventListener('click', function() {
     document.getElementById('tabManual').classList.add('active');
     document.getElementById('tabScan').classList.remove('active');
+    document.getElementById('tabRequests').classList.remove('active');
     document.getElementById('manualPane').style.display = 'block';
     document.getElementById('scanPane').style.display = 'none';
+    document.getElementById('requestsPane').style.display = 'none';
     stopScanner();
+  });
+  document.getElementById('tabRequests').addEventListener('click', function() {
+    document.getElementById('tabRequests').classList.add('active');
+    document.getElementById('tabScan').classList.remove('active');
+    document.getElementById('tabManual').classList.remove('active');
+    document.getElementById('requestsPane').style.display = 'block';
+    document.getElementById('scanPane').style.display = 'none';
+    document.getElementById('manualPane').style.display = 'none';
+    stopScanner();
+    loadIncomingRequests(); // refresh immediately when opening this tab, rather than waiting for the next poll tick
   });
 
   // ===== ME PAGE: real backend wiring =====
@@ -2031,8 +2098,7 @@
       realFriends = [];
       pendingRequests = [];
       myPhotoDataUrl = null;
-      document.getElementById('meMenuBadge').style.display = 'none';
-      document.getElementById('requestsSection').style.display = 'none';
+      document.getElementById('addBtnBadge').style.display = 'none';
 
       document.getElementById('meNameInput').value = '';
       document.getElementById('meCityInput').value = '';
@@ -2482,30 +2548,28 @@
 
   function loadIncomingRequests() {
     if (!myProfile) return;
-    apiListIncomingRequests(myProfile.id).then(function(res) {
-      if (!res.ok) return;
-      var requests = res.body.requests;
-      var badge = document.getElementById('meMenuBadge');
-      var section = document.getElementById('requestsSection');
+    Promise.all([
+      apiListIncomingRequests(myProfile.id),
+      apiListOutgoingRequests(myProfile.id)
+    ]).then(function(results) {
+      var incomingRes = results[0], outgoingRes = results[1];
+      if (!incomingRes.ok) return;
+      var requests = incomingRes.body.requests;
+      var badge = document.getElementById('addBtnBadge');
+      var tabBadge = document.getElementById('addSheetRequestsBadge');
       var listEl = document.getElementById('requestsList');
-      var countEl = document.getElementById('requestsCount');
+      var noReqMsg = document.getElementById('noRequestsMsg');
 
       var addBackIds = Object.keys(pendingAddBackPrompts);
       var totalCount = requests.length + addBackIds.length;
 
-      if (totalCount === 0) {
-        badge.style.display = 'none';
-        section.style.display = 'none';
-        listEl.innerHTML = '';
-        return;
-      }
-
-      badge.style.display = 'flex';
+      badge.style.display = totalCount === 0 ? 'none' : 'flex';
       badge.textContent = totalCount;
-      section.style.display = 'block';
-      countEl.textContent = totalCount;
+      tabBadge.style.display = totalCount === 0 ? 'none' : 'inline';
+      tabBadge.textContent = totalCount;
 
       listEl.innerHTML = '';
+      noReqMsg.style.display = totalCount === 0 ? 'block' : 'none';
 
       // Re-render any pending "add them back?" prompts first, so they don't
       // disappear out from under someone mid-decision when a poll refreshes.
@@ -2530,6 +2594,25 @@
           '<button class="approve-btn" data-id="' + r.id + '" data-action="approve">Approve</button>' +
           '<button class="deny-btn" data-id="' + r.id + '" data-action="deny">Deny</button>';
         listEl.appendChild(row);
+      });
+
+      // Outgoing requests — what you've sent, and their current status.
+      var outgoingListEl = document.getElementById('outgoingRequestsList');
+      var noOutgoingMsg = document.getElementById('noOutgoingRequestsMsg');
+      outgoingListEl.innerHTML = '';
+      var outgoingRequests = (outgoingRes.ok ? outgoingRes.body.requests : [])
+        .filter(function(r) { return r.status !== 'denied'; }); // denied ones aren't useful to keep showing
+      noOutgoingMsg.style.display = outgoingRequests.length === 0 ? 'block' : 'none';
+      outgoingRequests.forEach(function(r) {
+        var row = document.createElement('div');
+        row.className = 'request-row';
+        var statusLabel = r.status === 'approved'
+          ? '<span style="color:#6FCF97;">Approved ✓</span>'
+          : '<span style="color:var(--accent-day);">Pending…</span>';
+        row.innerHTML =
+          '<span class="req-name">' + escapeHtml(r.target_name || 'Someone') + '</span>' +
+          '<span style="font-size:12px;font-weight:700;">' + statusLabel + '</span>';
+        outgoingListEl.appendChild(row);
       });
 
       listEl.querySelectorAll('.approve-btn:not(.add-back-btn), .deny-btn:not(.dismiss-addback-btn)').forEach(function(btn) {
@@ -2642,13 +2725,16 @@
   }
 
   function updateRequestsBadgeCount(delta) {
-    var badge = document.getElementById('meMenuBadge');
+    var badge = document.getElementById('addBtnBadge');
+    var tabBadge = document.getElementById('addSheetRequestsBadge');
     var current = parseInt(badge.textContent || '0', 10) || 0;
     var next = Math.max(0, current + delta);
     if (next === 0) {
       badge.style.display = 'none';
+      tabBadge.style.display = 'none';
     } else {
       badge.textContent = next;
+      tabBadge.textContent = next;
     }
   }
 
