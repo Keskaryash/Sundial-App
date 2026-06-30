@@ -865,13 +865,10 @@
       <p class="error-text" id="manualError"></p>
     </div>
     <div id="requestsPane" style="display:none;max-height:50vh;overflow-y:auto;">
-      <h3 style="font-size:13px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;margin-bottom:8px;">Waiting for your approval</h3>
       <div id="requestsList"></div>
-      <p id="noRequestsMsg" style="display:none;font-size:13px;color:var(--text-dim);padding:8px 0;">No pending requests</p>
-
-      <h3 style="font-size:13px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.04em;margin:18px 0 8px;">Requests you've sent</h3>
+      <div id="requestsDivider" style="display:none;border-top:1px solid var(--bg-card-border);margin:10px 0;"></div>
       <div id="outgoingRequestsList"></div>
-      <p id="noOutgoingRequestsMsg" style="display:none;font-size:13px;color:var(--text-dim);padding:8px 0;">No outgoing requests</p>
+      <p id="noRequestsAtAllMsg" style="display:none;font-size:13px;color:var(--text-dim);padding:8px 0;text-align:center;">No pending requests</p>
     </div>
     <button class="btn-secondary" id="closeAddSheet">Cancel</button>
   </div>
@@ -2558,7 +2555,6 @@
       var badge = document.getElementById('addBtnBadge');
       var tabBadge = document.getElementById('addSheetRequestsBadge');
       var listEl = document.getElementById('requestsList');
-      var noReqMsg = document.getElementById('noRequestsMsg');
 
       var addBackIds = Object.keys(pendingAddBackPrompts);
       var totalCount = requests.length + addBackIds.length;
@@ -2569,7 +2565,6 @@
       tabBadge.textContent = totalCount;
 
       listEl.innerHTML = '';
-      noReqMsg.style.display = totalCount === 0 ? 'block' : 'none';
 
       // Re-render any pending "add them back?" prompts first, so they don't
       // disappear out from under someone mid-decision when a poll refreshes.
@@ -2596,24 +2591,31 @@
         listEl.appendChild(row);
       });
 
-      // Outgoing requests — what you've sent, and their current status.
+      // Outgoing requests — only the ones still genuinely pending someone
+      // else's approval. Already-approved ones aren't shown here at all;
+      // this view is purely "things waiting on someone," not a history log.
       var outgoingListEl = document.getElementById('outgoingRequestsList');
-      var noOutgoingMsg = document.getElementById('noOutgoingRequestsMsg');
+      var divider = document.getElementById('requestsDivider');
       outgoingListEl.innerHTML = '';
-      var outgoingRequests = (outgoingRes.ok ? outgoingRes.body.requests : [])
-        .filter(function(r) { return r.status !== 'denied'; }); // denied ones aren't useful to keep showing
-      noOutgoingMsg.style.display = outgoingRequests.length === 0 ? 'block' : 'none';
-      outgoingRequests.forEach(function(r) {
+      var outgoingPending = (outgoingRes.ok ? outgoingRes.body.requests : [])
+        .filter(function(r) { return r.status === 'pending'; });
+
+      outgoingPending.forEach(function(r) {
         var row = document.createElement('div');
         row.className = 'request-row';
-        var statusLabel = r.status === 'approved'
-          ? '<span style="color:#6FCF97;">Approved ✓</span>'
-          : '<span style="color:var(--accent-day);">Pending…</span>';
         row.innerHTML =
           '<span class="req-name">' + escapeHtml(r.target_name || 'Someone') + '</span>' +
-          '<span style="font-size:12px;font-weight:700;">' + statusLabel + '</span>';
+          '<span style="font-size:12px;font-weight:700;color:var(--accent-day);">Pending…</span>';
         outgoingListEl.appendChild(row);
       });
+
+      // The divider only shows when there's something on both sides of it
+      // to actually separate — otherwise it'd just be a stray line.
+      var incomingCount = listEl.children.length;
+      divider.style.display = (incomingCount > 0 && outgoingPending.length > 0) ? 'block' : 'none';
+
+      document.getElementById('noRequestsAtAllMsg').style.display =
+        (incomingCount === 0 && outgoingPending.length === 0) ? 'block' : 'none';
 
       listEl.querySelectorAll('.approve-btn:not(.add-back-btn), .deny-btn:not(.dismiss-addback-btn)').forEach(function(btn) {
         btn.addEventListener('click', function() {
